@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WebSocket Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+        }
+
+        :root {
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #222;
+            --muted-text: #666;
+            --border-color: #e5e7eb;
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --my-msg: #2563eb;
+            --other-msg: #e5e7eb;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #111827;
+            --card-bg: #1f2937;
+            --text-color: #f3f4f6;
+            --muted-text: #9ca3af;
+            --border-color: #374151;
+            --other-msg: #374151;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            padding: 20px 15px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        #theme-toggle {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* === 修复区域：自适应加入聊天栏 === */
+        .join-area {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #username {
+            flex: 1;
+            min-width: 180px;
+            max-width: 420px;
+            padding: 12px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            outline: none;
+        }
+
+        #join-chat {
+            padding: 12px 18px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        #join-chat:disabled {
+            background: var(--muted-text);
+            cursor: not-allowed;
+        }
+
+        /* 聊天容器 */
+        #chat {
+            width: 100%;
+            height: 450px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--card-bg);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .msg {
+            max-width: 75%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            line-height: 1.4;
+            word-break: break-all;
+        }
+
+        .msg-self {
+            align-self: flex-end;
+            background: var(--my-msg);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg-other {
+            align-self: flex-start;
+            background: var(--other-msg);
+            color: var(--text-color);
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg-name {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        #input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            outline: none;
+        }
+
+        /* 适配手机竖屏高度 */
+        @media (max-height: 650px) {
+            #chat {
+                height: 320px;
+            }
+        }
+
+        /* 滚动条美化 */
+        #chat::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chat::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WebSocket 聊天室</h1>
+            <button id="theme-toggle">🌓 切换主题</button>
+        </div>
+
+        <div class="join-area">
+            <input id="username" type="text" placeholder="输入用户名">
+            <button id="join-chat" type="button">加入聊天</button>
+        </div>
+
+        <div id="chat"></div>
+        <input id="input" type="text" placeholder="输入消息，回车发送">
+    </div>
+
+    <script>
+        const username = document.querySelector("#username");
+        const join_btn = document.querySelector("#join-chat");
+        const chatBox = document.querySelector("#chat");
+        const input = document.querySelector("#input");
+        const themeToggle = document.querySelector("#theme-toggle");
+
+        themeToggle.addEventListener("click", () => {
+            document.body.dataset.theme = document.body.dataset.theme === "dark" ? "" : "dark";
+        });
+
+        function clearChat() {
+            chatBox.innerHTML = "";
+        }
+
+        function addMessage(text, isSelf) {
+            const div = document.createElement("div");
+            div.className = `msg ${isSelf ? "msg-self" : "msg-other"}`;
+            div.innerHTML = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        join_btn.addEventListener("click", function (e) {
+            this.disabled = true;
+            clearChat();
+
+            const websocket = new WebSocket("ws://" + window.location.hostname + ":3000/websocket");
+            const myName = username.value.trim();
+
+            websocket.onopen = function () {
+                console.log("connection opened");
+                websocket.send(myName);
+            }
+
+            const btn = this;
+
+            websocket.onclose = function () {
+                console.log("connection closed");
+                btn.disabled = false;
+            }
+
+            websocket.onmessage = function (e) {
+                console.log("received message: " + e.data);
+                if (e.data.includes(":")) {
+                    const [name, msg] = e.data.split(/:(.+)/);
+                    if (name === myName) return;
+                    addMessage(`<div class="msg-name">${name}</div>${msg}`, false);
+                } else {
+                    addMessage(e.data, false);
+                }
+            }
+
+            input.onkeydown = function (e) {
+                if (e.key === "Enter" && this.value.trim()) {
+                    const sendText = this.value.trim();
+                    websocket.send(sendText);
+                    addMessage(`<div class="msg-name">${myName}</div>${sendText}`, true);
+                    this.value = "";
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

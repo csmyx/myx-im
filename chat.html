@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>WS IM 测试工具</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .box { border: 1px solid #ccc; padding: 10px; margin: 10px 0; border-radius: 6px; }
+    #log { height: 300px; overflow-y: auto; background: #f9f9f9; padding: 10px; }
+    input { padding: 6px; margin: 4px; }
+    button { padding: 6px 12px; cursor: pointer; }
+    .msg-send { color: #0066cc; }
+    .msg-recv { color: #cc0066; }
+    .info { color: #333; }
+  </style>
+</head>
+
+<body>
+  <h2>WebSocket IM 单聊测试（直接连 /im/ws/{uid}）</h1>
+
+  <div class="box">
+    <h3>1. 连接 WebSocket</h3>
+    我的UID：<input type="number" id="myUid" placeholder="输入自己UID" value="1001">
+    <button onclick="connectWS()">连接WS</button>
+    <button onclick="disconnectWS()">断开连接</button>
+  </div>
+
+  <div class="box">
+    <h3>2. 发送私聊消息</h3>
+    对方UID：<input type="number" id="toUid" placeholder="接收方UID" value="1002"><br>
+    消息内容：<input type="text" id="content" style="width: 300px;" value="你好！">
+    <button onclick="sendPrivateChat()">发送私聊</button>
+  </div>
+
+  <div class="box">
+    <h3>📜 消息日志（调试用）</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let ws = null;
+    const log = document.getElementById('log');
+
+    // 连接 WS
+    function connectWS() {
+      const myUid = document.getElementById('myUid').value;
+      if (!myUid) { alert('请输入我的UID'); return; }
+
+      if (ws) ws.close();
+
+      // 👉 直接连接你的接口
+      const url = `ws://127.0.0.1:3000/im/ws/${myUid}`;
+      ws = new WebSocket(url);
+
+      ws.onopen = () => addLog(`✅ 已连接：${url}`, 'info');
+      ws.onclose = () => addLog(`❌ 已断开`, 'info');
+      ws.onerror = (e) => addLog(`⚠️ 错误：${e}`, 'info');
+
+      // 收到消息
+      ws.onmessage = (e) => {
+        addLog(`📩 收到：${e.data}`, 'msg-recv');
+      };
+    }
+
+    // 发送私聊（完全适配你的后端 private_chat 协议）
+    function sendPrivateChat() {
+      if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+
+      const toUid = document.getElementById('toUid').value;
+      const content = document.getElementById('content').value;
+      if (!toUid || !content) { alert('请填写完整'); return; }
+
+      const msg = {
+        cmd: "private_chat",
+        seq: Date.now(),
+        data: {
+          to_uid: parseInt(toUid),
+          content: content,
+          msg_type: 1
+        }
+      };
+
+      const json = JSON.stringify(msg);
+      ws.send(json);
+      addLog(`📤 发送：${json}`, 'msg-send');
+    }
+
+    function disconnectWS() {
+      if (ws) ws.close();
+    }
+
+    // 日志输出
+    function addLog(text, className) {
+      const d = new Date();
+      const time = d.toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = className;
+      div.innerHTML = `[${time}] ${text}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+  </script>
+</body>
+</html>

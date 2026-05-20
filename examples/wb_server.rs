@@ -48,22 +48,51 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
 
     let (outgoing, incoming) = ws_stream.split();
 
+    // let broadcast_incoming = incoming.try_for_each(|msg| {
+    //     println!(
+    //         "Received a message from {}: {}",
+    //         addr,
+    //         msg.to_text().unwrap()
+    //     );
+    //     let peers = peer_map.lock().unwrap();
+    //     // We want to broadcast the message to everyone except ourselves.
+    //     let broadcast_recipients = peers
+    //         .iter()
+    //         .filter(|(peer_addr, _)| peer_addr != &&addr)
+    //         .map(|(_, ws_sink)| ws_sink);
+    //     for recp in broadcast_recipients {
+    //         recp.unbounded_send(msg.clone()).unwrap();
+    //     }
+    //     future::ok(())
+    // });
+
     let broadcast_incoming = incoming.try_for_each(|msg| {
-        println!(
-            "Received a message from {}: {}",
-            addr,
-            msg.to_text().unwrap()
-        );
-        let peers = peer_map.lock().unwrap();
+        // 1. 安全地解析文本消息
+        let text_msg = match msg.to_text() {
+            Ok(t) => t.to_string(),          // 转为 String 以便后续共享
+            Err(_) => return future::ok(()), // 忽略非文本消息
+        };
 
-        // We want to broadcast the message to everyone except ourselves.
-        let broadcast_recipients = peers
-            .iter()
-            .filter(|(peer_addr, _)| peer_addr != &&addr)
-            .map(|(_, ws_sink)| ws_sink);
+        println!("Received a message from {}: {}", addr, text_msg);
 
-        for recp in broadcast_recipients {
-            recp.unbounded_send(msg.clone()).unwrap();
+        // 2. 缩小锁的作用域：仅提取接收者列表
+        let recipients: Vec<_> = {
+            let peers = peer_map.lock().unwrap();
+            peers
+                .iter()
+                .filter(|(peer_addr, _)| *peer_addr != &addr) // 过滤掉自己
+                .map(|(_, ws_sink)| ws_sink.clone()) // 克隆 sink 的引用
+                .collect()
+        }; // 锁在这里释放！
+
+        let ws_msg = Message::text(text_msg);
+
+        // 4. 在锁外部进行发送，并安全处理发送错误
+        for recp in recipients {
+            if recp.unbounded_send(ws_msg.clone()).is_err() {
+                eprintln!("Failed to send to a peer, they might have disconnected.");
+                // 实际业务中应在此处从 peer_map 中移除该客户端
+            }
         }
 
         future::ok(())

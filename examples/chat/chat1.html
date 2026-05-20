@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+
+        body {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 0 15px;
+            background: #f5f7fa;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 24px;
+        }
+
+        #username {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            outline: none;
+        }
+
+        #join-chat {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        #join-chat:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        #chat {
+            width: 100%;
+            height: 400px;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            resize: none;
+            font-size: 15px;
+            line-height: 1.5;
+            background: white;
+            margin-bottom: 10px;
+        }
+
+        #input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        @media (max-height: 600px) {
+            #chat {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Chat</h1>
+
+    <input id="username" type="text" placeholder="输入用户名">
+    <button id="join-chat" type="button">加入聊天</button>
+    <textarea id="chat" readonly placeholder="等待消息..."></textarea>
+    <input id="input" type="text" placeholder="输入消息，按回车发送">
+
+    <script>
+        const username = document.querySelector("#username");
+        const join_btn = document.querySelector("#join-chat");
+        const textarea = document.querySelector("#chat");
+        const input = document.querySelector("#input");
+
+        join_btn.addEventListener("click", function(e) {
+            this.disabled = true;
+
+            const websocket = new WebSocket("ws://" + window.location.hostname + ":3000/websocket");
+
+            websocket.onopen = function() {
+                console.log("connection opened");
+                websocket.send(username.value);
+            }
+
+            const btn = this;
+
+            websocket.onclose = function() {
+                console.log("connection closed");
+                btn.disabled = false;
+            }
+
+            websocket.onmessage = function(e) {
+                console.log("received message: "+e.data);
+                textarea.value += e.data+"\r\n";
+                textarea.scrollTop = textarea.scrollHeight;
+            }
+
+            input.onkeydown = function(e) {
+                if (e.key == "Enter") {
+                    websocket.send(input.value);
+                    input.value = "";
+                }
+            }
+        });
+    </script>
+</html>

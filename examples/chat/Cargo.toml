@@ -1,23 +1,23 @@
+# examples/chat/Cargo.toml
 [package]
-name = "myx-im"
+name = "example-chat"  # 修改包名，避免与主包 myx-im 冲突
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.9", features = ["ws"] }
+dashmap = "6.1.0"
 futures-channel = "0.3.32"
-futures-util = "0.3.32"
+futures-util = { version = "0.3.32", features = ["sink", "std"] }
 log = "0.4.29"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["full"] }
+tokio-tungstenite = "0.29.0"
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "any", "postgres"] }
-validator = { version = "0.20.0", features = ["derive"] }
-anyhow = "1.0.102"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
+# 如果 chat 示例需要测试，可保留 dev-dependencies
 [dev-dependencies]
 http-body-util = "0.1.3"
 tower = "0.5.3"
