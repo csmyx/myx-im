@@ -1,89 +1,113 @@
-use super::{
-    model::{LoginReq, WsMsg},
-    service::{get_user_id_by_token, login, send_single_msg},
-    state::OnlineUsers,
-};
-
 use axum::{
-    Router,
-    extract::ws::{WebSocket, WebSocketUpgrade},
-    extract::{Query, State},
+    Json, Router,
+    extract::{Query, State, WebSocketUpgrade, ws::{Message, Utf8Bytes, WebSocket}},
     http::StatusCode,
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::{get, post},
 };
+use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
-use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use uuid::Uuid;
 
-// ======================
-// 1. HTTP路由（管理接口，短连接，无状态）
-// ======================
-pub fn http_routes() -> Router<PgPool> {
+use crate::dao;
+use crate::jwt::verify_token;
+use crate::model::{LoginRequest, PrivateChatReq, RegisterRequest, WsMessage};
+use crate::service;
+use crate::state::AppState;
+
+pub fn app_router(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/api/login", post(login_handler))
-        .route("/api/friend/list", get(friend_list_handler))
+        .route("/", get(index_handler))
+        .route("/im/ws", get(websocket_handler))
+        .route("/api/user/register", post(user_register_handler))
+        .route("/api/user/login", post(user_login_handler))
+        .with_state(state)
 }
 
-// HTTP登录处理函数
-async fn login_handler(
-    State(pool): State<PgPool>,
-    axum::Json(req): axum::Json<LoginReq>,
-) -> (StatusCode, String) {
-    match login(&pool, req).await {
-        Ok(resp) => (StatusCode::OK, serde_json::to_string(&resp).unwrap()),
-        Err(_) => (StatusCode::BAD_REQUEST, "登录失败".into()),
-    }
+// ==================== Page ====================
+
+async fn index_handler() -> Html<&'static str> {
+    Html(std::include_str!("../chat.html"))
 }
 
-// ======================
-// 2. WebSocket路由（实时接口，长连接）
-// ======================
+// ==================== WebSocket ====================
+
 #[derive(Debug, Deserialize)]
-pub struct WsQuery {
-    token: String, // 连接时携带HTTP登录拿到的token
+struct WsQuery {
+    token: String,
 }
 
-pub fn ws_routes(online_users: OnlineUsers) -> Router<PgPool> {
-    Router::new()
-        .route("/api/ws", get(ws_upgrade_handler))
-        .with_state(online_users)
-}
-
-// WebSocket握手处理：校验token → 拿到user_id → 保存全局连接
-async fn ws_upgrade_handler(
+async fn websocket_handler(
     ws: WebSocketUpgrade,
     Query(query): Query<WsQuery>,
-    State(pool): State<PgPool>,
-    State(online_users): State<OnlineUsers>,
+    State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    // 1. 校验token，和HTTP登录用同一套逻辑，拿到用户ID
-    let user_id = get_user_id_by_token(&query.token).unwrap();
-
-    // 2. 升级WebSocket，保存连接
-    ws.on_upgrade(move |socket| handle_ws_connection(user_id, socket, online_users, pool))
+    let claims = match verify_token(&query.token, &state.config) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("WS auth failed: {e}");
+            return (StatusCode::UNAUTHORIZED, "invalid token").into_response();
+        }
+    };
+    ws.on_upgrade(move |socket| handle_im_websocket(socket, claims.user_id, state))
 }
 
-// WebSocket长连接循环：收发消息
-async fn handle_ws_connection(
-    user_id: u64,
-    mut socket: WebSocket,
-    online_users: OnlineUsers,
-    pool: PgPool,
-) {
-    // 【关键】用户上线：把连接存入全局Map
-    online_users.write().await.insert(user_id, socket.clone());
+async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppState>) {
+    tracing::debug!("handle_im_websocket user={user_id}");
 
-    // 循环接收客户端消息
-    while let Some(Ok(msg)) = socket.next().await {
-        if let axum::extract::ws::Message::Text(text) = msg {
-            let ws_msg: WsMsg = serde_json::from_str(&text).unwrap();
-            // 调用service发送消息
-            send_single_msg(&online_users, user_id, ws_msg)
-                .await
-                .unwrap();
+    let (mut sender, mut receiver) = socket.split();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    state.insert_online_user(user_id, tx);
+
+    tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            let _ = sender.send(Message::Text(msg)).await;
+        }
+    });
+
+    while let Some(Ok(msg)) = receiver.next().await {
+        match msg {
+            Message::Text(raw) => {
+                handle_biz_msg(user_id, raw.as_str(), state.clone()).await;
+            }
+            Message::Close(_) => break,
+            _ => {}
         }
     }
+}
 
-    // 【关键】用户下线：从全局Map删除连接
-    online_users.write().await.remove(&user_id);
+async fn handle_biz_msg(uid: Uuid, text: &str, state: Arc<AppState>) {
+    let ws_msg: WsMessage = serde_json::from_str(text).expect("failed to parse WsMessage");
+    match ws_msg.cmd.as_str() {
+        "heartbeat" => {}
+        "private_chat" => {
+            let req: PrivateChatReq =
+                serde_json::from_value(ws_msg.data).expect("failed to parse private_chat request");
+
+            let _ = dao::save_message(&state.pg_pool, uid, req.to_uid, &req.content, req.msg_type)
+                .await;
+            if req.msg_type == 1 {
+                state.send_to_user(req.to_uid, Utf8Bytes::from(req.content));
+            }
+        }
+        _ => {}
+    }
+}
+
+// ==================== User handlers ====================
+
+async fn user_register_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RegisterRequest>,
+) -> impl IntoResponse {
+    service::register_user(&state.pg_pool, &state.config, req.username, req.password).await
+}
+
+async fn user_login_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<LoginRequest>,
+) -> impl IntoResponse {
+    service::login_user(&state.pg_pool, &state.config, req.username, req.password).await
 }

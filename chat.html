@@ -2,231 +2,153 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>myx-im 测试工具</title>
+  <title>myx-im test</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: monospace; padding: 16px; background: #1e1e1e; color: #d4d4d4; }
-    h2 { font-size: 14px; color: #569cd6; margin-bottom: 12px; }
-    .layout { display: flex; gap: 12px; height: calc(100vh - 40px); }
-    .panel { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-    .box { border: 1px solid #3c3c3c; border-radius: 6px; padding: 10px; background: #252526; }
-    .box h3 { font-size: 12px; margin-bottom: 6px; color: #9cdcfe; }
-    label { font-size: 11px; color: #888; display: block; margin-top: 4px; }
-    input { width: 100%; padding: 5px 8px; margin: 2px 0; border: 1px solid #3c3c3c; border-radius: 3px; background: #3c3c3c; color: #d4d4d4; font-family: monospace; font-size: 12px; }
-    input:focus { outline: none; border-color: #569cd6; }
-    button { padding: 5px 12px; margin: 4px 2px 0 0; border: none; border-radius: 3px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold; }
+    html, body { height: 100vh; overflow: hidden; }
+    body { font: 12px monospace; background: #1e1e1e; color: #d4d4d4; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
+    .row { display: flex; gap: 8px; }
+    .panel { flex: 1; border: 1px solid #3c3c3c; border-radius: 4px; padding: 6px 8px; background: #252526; }
+    .panel h2 { font-size: 12px; color: #569cd6; margin-bottom: 4px; }
+    .panel input { width: 100%; padding: 3px 6px; margin: 1px 0; border: 1px solid #3c3c3c; border-radius: 2px; background: #3c3c3c; color: #d4d4d4; font: 11px monospace; }
+    .panel input:focus { outline: none; border-color: #569cd6; }
+    .panel button { padding: 3px 10px; margin: 3px 2px 0 0; border: none; border-radius: 2px; cursor: pointer; font: 11px monospace; font-weight: bold; }
     .btn-go { background: #0e639c; color: #fff; }
     .btn-go:hover { background: #1177bb; }
-    .btn-red { background: #a31515; color: #fff; }
-    .btn-red:hover { background: #c41a1a; }
-    .btn-gray { background: #3c3c3c; color: #ccc; }
-    .status { font-size: 11px; margin-top: 4px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
-    .status-off { background: #5a1d1d; color: #f44747; }
-    .status-on { background: #1d5a1d; color: #4ec94e; }
+    .status { font-size: 10px; padding: 1px 5px; border-radius: 2px; }
+    .off { background: #5a1d1d; color: #f44747; }
+    .on  { background: #1d5a1d; color: #4ec94e; }
 
-    #log { flex: 1; overflow-y: auto; background: #1e1e1e; padding: 8px; border: 1px solid #3c3c3c; border-radius: 6px; font-size: 11px; line-height: 1.5; min-height: 0; }
-    .msg-out { color: #569cd6; } /* sent */
-    .msg-in  { color: #ce9178; } /* received */
-    .msg-sys  { color: #6a9955; } /* system */
-    .msg-err  { color: #f44747; } /* error */
+    .bar { display: flex; gap: 6px; }
+    .bar input { flex: 1; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 3px; background: #3c3c3c; color: #d4d4d4; font: 12px monospace; }
+    .bar input:focus { outline: none; border-color: #569cd6; }
+    .bar button { padding: 4px 10px; border: none; border-radius: 3px; cursor: pointer; font: 11px monospace; font-weight: bold; background: #0e639c; color: #fff; }
+    .bar button:hover { background: #1177bb; }
 
-    input[type=number]::-webkit-inner-spin-button { display: none; }
+    #log { flex: 1; overflow-y: auto; background: #1e1e1e; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 4px; line-height: 1.4; min-height: 0; }
+    .msg-out { color: #569cd6; }
+    .msg-in  { color: #ce9178; }
+    .msg-sys { color: #6a9955; }
   </style>
 </head>
 <body>
 
-<div class="layout">
-  <!-- =================== User A =================== -->
+<div class="row">
   <div class="panel">
     <h2>User A</h2>
-
-    <div class="box">
-      <h3>Register / Login</h3>
-      <input type="text" id="userA" placeholder="username" value="alice">
-      <input type="password" id="passA" placeholder="password" value="alice123">
-      <button class="btn-go" onclick="register('A')">Register</button>
-      <button class="btn-go" onclick="login('A')">Login & Connect</button>
-      <div><span class="status status-off" id="statusA">offline</span></div>
-    </div>
+    <input type="text" id="userA" placeholder="username" value="alice">
+    <input type="password" id="passA" placeholder="password" value="alice123">
+    <button class="btn-go" onclick="register('A')">Register</button>
+    <button class="btn-go" onclick="login('A')">Login & Connect</button>
+    <span class="status off" id="statusA">offline</span>
   </div>
-
-  <!-- =================== User B =================== -->
   <div class="panel">
     <h2>User B</h2>
-
-    <div class="box">
-      <h3>Register / Login</h3>
-      <input type="text" id="userB" placeholder="username" value="bob">
-      <input type="password" id="passB" placeholder="password" value="bob123">
-      <button class="btn-go" onclick="register('B')">Register</button>
-      <button class="btn-go" onclick="login('B')">Login & Connect</button>
-      <div><span class="status status-off" id="statusB">offline</span></div>
-    </div>
+    <input type="text" id="userB" placeholder="username" value="bob">
+    <input type="password" id="passB" placeholder="password" value="bob123">
+    <button class="btn-go" onclick="register('B')">Register</button>
+    <button class="btn-go" onclick="login('B')">Login & Connect</button>
+    <span class="status off" id="statusB">offline</span>
   </div>
 </div>
 
-<!-- =================== Chat =================== -->
-<div class="box" style="display:flex; gap:8px; margin-top:8px;">
-  <input type="text" id="chatInput" placeholder="Type message then Enter (User A → User B)" style="flex:1;" autocomplete="off">
-  <button class="btn-go" onclick="sendChat()">Send A→B</button>
-  <button class="btn-go" onclick="sendChatB()">Send B→A</button>
+<div class="bar">
+  <input type="text" id="chatInput" placeholder="Message (Enter = A→B)" autocomplete="off">
+  <button onclick="sendChat()">A→B</button>
+  <button onclick="sendChatB()">B→A</button>
 </div>
-<div id="log" style="max-height:200px;"></div>
+
+<div id="log"></div>
 
 <script>
-  // State
   const clients = { A: { ws: null, uid: null, token: null }, B: { ws: null, uid: null, token: null } };
   const log = document.getElementById('log');
-
-  // ========== Helpers ==========
 
   function status(user, text, on) {
     const el = document.getElementById('status' + user);
     el.textContent = text;
-    el.className = 'status ' + (on ? 'status-on' : 'status-off');
+    el.className = 'status ' + (on ? 'on' : 'off');
   }
 
   function sys(msg) { addLog(msg, 'msg-sys'); }
 
   function addLog(text, cls) {
-    const d = new Date();
-    const time = d.toLocaleTimeString();
     const div = document.createElement('div');
     div.className = cls || '';
-    div.textContent = `[${time}] ${text}`;
+    div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
   }
 
-  // ========== API calls ==========
-
   async function register(user) {
-    const username = document.getElementById('user' + user).value.trim();
-    const password = document.getElementById('pass' + user).value;
-    if (!username || !password) { sys('❌ ' + user + ': fill in username + password'); return; }
-
+    const u = document.getElementById('user' + user).value.trim();
+    const p = document.getElementById('pass' + user).value;
+    if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
     sys(user + ' registering...');
-    const resp = await fetch('/api/user/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+    const r = await fetch('/api/user/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
     });
-    const data = await resp.json();
-    if (data.code === 200) {
-      sys('✅ ' + user + ' registered: ' + username);
-    } else {
-      sys('⚠️ ' + user + ' register: ' + data.msg + ' (maybe already exists, try login)');
-    }
+    const d = await r.json();
+    sys(d.code === 200 ? '✅ ' + user + ' registered' : '⚠️ ' + d.msg);
   }
 
   async function login(user) {
-    const username = document.getElementById('user' + user).value.trim();
-    const password = document.getElementById('pass' + user).value;
-    if (!username || !password) { sys('❌ ' + user + ': fill in username + password'); return; }
-
+    const u = document.getElementById('user' + user).value.trim();
+    const p = document.getElementById('pass' + user).value;
+    if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
     sys(user + ' logging in...');
-    const resp = await fetch('/api/user/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+    const r = await fetch('/api/user/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
     });
-    const data = await resp.json();
-    if (data.code !== 200) {
-      sys('❌ ' + user + ' login failed: ' + data.msg);
-      return;
-    }
-
-    const token = data.data;
+    const d = await r.json();
+    if (d.code !== 200) { sys('❌ ' + user + ' login: ' + d.msg); return; }
+    const token = d.data;
     let uid;
     try { uid = JSON.parse(atob(token.split('.')[1])).user_id; } catch(_) {}
-
     clients[user].token = token;
     clients[user].uid = uid;
-    sys('✅ ' + user + ' logged in, uid=' + uid);
-
-    // Auto-connect WS
+    sys('✅ ' + user + ' logged in uid=' + uid);
     connectWS(user);
   }
 
-  // ========== WebSocket ==========
-
   function connectWS(user) {
     const c = clients[user];
-    if (!c.token) { sys('❌ ' + user + ': no token, login first'); return; }
+    if (!c.token) return;
     if (c.ws) c.ws.close();
-
-    const url = `ws://${location.host}/im/ws?token=${encodeURIComponent(c.token)}`;
-    sys(user + ' connecting WS...');
-    const ws = new WebSocket(url);
-
-    ws.onopen = () => {
-      c.ws = ws;
-      status(user, 'connected', true);
-      sys('🔗 ' + user + ' WS connected');
-    };
-    ws.onclose = () => {
-      c.ws = null;
-      status(user, 'disconnected', false);
-      sys('🔌 ' + user + ' WS disconnected');
-    };
+    const ws = new WebSocket(`ws://${location.host}/im/ws?token=${encodeURIComponent(c.token)}`);
+    ws.onopen = () => { c.ws = ws; status(user, 'connected', true); sys('🔗 ' + user + ' connected'); };
+    ws.onclose = () => { c.ws = null; status(user, 'offline', false); sys('🔌 ' + user + ' disconnected'); };
     ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        addLog('📩 ' + user + ' received: ' + JSON.stringify(msg), 'msg-in');
-      } catch(_) {
-        addLog('📩 ' + user + ' received: ' + e.data, 'msg-in');
-      }
+      try { addLog('📩 ' + user + ': ' + JSON.stringify(JSON.parse(e.data)), 'msg-in'); }
+      catch(_) { addLog('📩 ' + user + ': ' + e.data, 'msg-in'); }
     };
-    ws.onerror = () => sys('⚠️ ' + user + ' WS error');
   }
-
-  function disconnectWS(user) {
-    const c = clients[user];
-    if (c.ws) { c.ws.close(); c.ws = null; }
-    status(user, 'disconnected', false);
-  }
-
-  // ========== Send messages ==========
 
   function sendRaw(user, toUid) {
     const c = clients[user];
     if (!c.ws || c.ws.readyState !== 1) { sys('❌ ' + user + ' not connected'); return; }
-
-    const input = document.getElementById('chatInput');
-    const content = input.value.trim();
+    const inp = document.getElementById('chatInput');
+    const content = inp.value.trim();
     if (!content) return;
-
-    const msg = {
-      cmd: 'private_chat',
-      seq: Date.now(),
-      data: { to_uid: toUid, content, msg_type: 1 }
-    };
-
-    c.ws.send(JSON.stringify(msg));
+    c.ws.send(JSON.stringify({ cmd: 'private_chat', seq: Date.now(), data: { to_uid: toUid, content, msg_type: 1 } }));
     addLog('📤 ' + user + ' → ' + toUid + ': ' + content, 'msg-out');
-    input.value = '';
-    input.focus();
+    inp.value = ''; inp.focus();
   }
 
   function sendChat() {
-    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both users must be logged in first'); return; }
+    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both must log in first'); return; }
     sendRaw('A', clients.B.uid);
   }
-
   function sendChatB() {
-    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both users must be logged in first'); return; }
+    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both must log in first'); return; }
     sendRaw('B', clients.A.uid);
   }
 
-  // ========== Enter key ==========
-  document.getElementById('chatInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendChat();
-  });
+  document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
-  // ========== Quick-start: register + login both ==========
-  sys('💡 Pre-filled: alice/alice123  bob/bob123');
-  sys('💡 Click Register on each, then Login & Connect on each.');
-  sys('💡 Or just Login if already registered.');
+  sys('💡 Register both users, then Login & Connect on each.');
 </script>
 </body>
 </html>
