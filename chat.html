@@ -2,103 +2,231 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>WS IM 测试工具</title>
+  <title>myx-im 测试工具</title>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    .box { border: 1px solid #ccc; padding: 10px; margin: 10px 0; border-radius: 6px; }
-    #log { height: 300px; overflow-y: auto; background: #f9f9f9; padding: 10px; }
-    input { padding: 6px; margin: 4px; }
-    button { padding: 6px 12px; cursor: pointer; }
-    .msg-send { color: #0066cc; }
-    .msg-recv { color: #cc0066; }
-    .info { color: #333; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; padding: 16px; background: #1e1e1e; color: #d4d4d4; }
+    h2 { font-size: 14px; color: #569cd6; margin-bottom: 12px; }
+    .layout { display: flex; gap: 12px; height: calc(100vh - 40px); }
+    .panel { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .box { border: 1px solid #3c3c3c; border-radius: 6px; padding: 10px; background: #252526; }
+    .box h3 { font-size: 12px; margin-bottom: 6px; color: #9cdcfe; }
+    label { font-size: 11px; color: #888; display: block; margin-top: 4px; }
+    input { width: 100%; padding: 5px 8px; margin: 2px 0; border: 1px solid #3c3c3c; border-radius: 3px; background: #3c3c3c; color: #d4d4d4; font-family: monospace; font-size: 12px; }
+    input:focus { outline: none; border-color: #569cd6; }
+    button { padding: 5px 12px; margin: 4px 2px 0 0; border: none; border-radius: 3px; cursor: pointer; font-family: monospace; font-size: 11px; font-weight: bold; }
+    .btn-go { background: #0e639c; color: #fff; }
+    .btn-go:hover { background: #1177bb; }
+    .btn-red { background: #a31515; color: #fff; }
+    .btn-red:hover { background: #c41a1a; }
+    .btn-gray { background: #3c3c3c; color: #ccc; }
+    .status { font-size: 11px; margin-top: 4px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+    .status-off { background: #5a1d1d; color: #f44747; }
+    .status-on { background: #1d5a1d; color: #4ec94e; }
+
+    #log { flex: 1; overflow-y: auto; background: #1e1e1e; padding: 8px; border: 1px solid #3c3c3c; border-radius: 6px; font-size: 11px; line-height: 1.5; min-height: 0; }
+    .msg-out { color: #569cd6; } /* sent */
+    .msg-in  { color: #ce9178; } /* received */
+    .msg-sys  { color: #6a9955; } /* system */
+    .msg-err  { color: #f44747; } /* error */
+
+    input[type=number]::-webkit-inner-spin-button { display: none; }
   </style>
 </head>
-
 <body>
-  <h2>WebSocket IM 单聊测试（直接连 /im/ws/{uid}）</h1>
 
-  <div class="box">
-    <h3>1. 连接 WebSocket</h3>
-    我的UID：<input type="number" id="myUid" placeholder="输入自己UID" value="1001">
-    <button onclick="connectWS()">连接WS</button>
-    <button onclick="disconnectWS()">断开连接</button>
+<div class="layout">
+  <!-- =================== User A =================== -->
+  <div class="panel">
+    <h2>User A</h2>
+
+    <div class="box">
+      <h3>Register / Login</h3>
+      <input type="text" id="userA" placeholder="username" value="alice">
+      <input type="password" id="passA" placeholder="password" value="alice123">
+      <button class="btn-go" onclick="register('A')">Register</button>
+      <button class="btn-go" onclick="login('A')">Login & Connect</button>
+      <div><span class="status status-off" id="statusA">offline</span></div>
+    </div>
   </div>
 
-  <div class="box">
-    <h3>2. 发送私聊消息</h3>
-    对方UID：<input type="number" id="toUid" placeholder="接收方UID" value="1002"><br>
-    消息内容：<input type="text" id="content" style="width: 300px;" value="你好！">
-    <button onclick="sendPrivateChat()">发送私聊</button>
+  <!-- =================== User B =================== -->
+  <div class="panel">
+    <h2>User B</h2>
+
+    <div class="box">
+      <h3>Register / Login</h3>
+      <input type="text" id="userB" placeholder="username" value="bob">
+      <input type="password" id="passB" placeholder="password" value="bob123">
+      <button class="btn-go" onclick="register('B')">Register</button>
+      <button class="btn-go" onclick="login('B')">Login & Connect</button>
+      <div><span class="status status-off" id="statusB">offline</span></div>
+    </div>
   </div>
+</div>
 
-  <div class="box">
-    <h3>📜 消息日志（调试用）</h3>
-    <div id="log"></div>
-  </div>
+<!-- =================== Chat =================== -->
+<div class="box" style="display:flex; gap:8px; margin-top:8px;">
+  <input type="text" id="chatInput" placeholder="Type message then Enter (User A → User B)" style="flex:1;" autocomplete="off">
+  <button class="btn-go" onclick="sendChat()">Send A→B</button>
+  <button class="btn-go" onclick="sendChatB()">Send B→A</button>
+</div>
+<div id="log" style="max-height:200px;"></div>
 
-  <script>
-    let ws = null;
-    const log = document.getElementById('log');
+<script>
+  // State
+  const clients = { A: { ws: null, uid: null, token: null }, B: { ws: null, uid: null, token: null } };
+  const log = document.getElementById('log');
 
-    // 连接 WS
-    function connectWS() {
-      const myUid = document.getElementById('myUid').value;
-      if (!myUid) { alert('请输入我的UID'); return; }
+  // ========== Helpers ==========
 
-      if (ws) ws.close();
+  function status(user, text, on) {
+    const el = document.getElementById('status' + user);
+    el.textContent = text;
+    el.className = 'status ' + (on ? 'status-on' : 'status-off');
+  }
 
-      // 👉 直接连接你的接口
-      const url = `ws://127.0.0.1:3000/im/ws/${myUid}`;
-      ws = new WebSocket(url);
+  function sys(msg) { addLog(msg, 'msg-sys'); }
 
-      ws.onopen = () => addLog(`✅ 已连接：${url}`, 'info');
-      ws.onclose = () => addLog(`❌ 已断开`, 'info');
-      ws.onerror = (e) => addLog(`⚠️ 错误：${e}`, 'info');
+  function addLog(text, cls) {
+    const d = new Date();
+    const time = d.toLocaleTimeString();
+    const div = document.createElement('div');
+    div.className = cls || '';
+    div.textContent = `[${time}] ${text}`;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
 
-      // 收到消息
-      ws.onmessage = (e) => {
-        addLog(`📩 收到：${e.data}`, 'msg-recv');
-      };
+  // ========== API calls ==========
+
+  async function register(user) {
+    const username = document.getElementById('user' + user).value.trim();
+    const password = document.getElementById('pass' + user).value;
+    if (!username || !password) { sys('❌ ' + user + ': fill in username + password'); return; }
+
+    sys(user + ' registering...');
+    const resp = await fetch('/api/user/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await resp.json();
+    if (data.code === 200) {
+      sys('✅ ' + user + ' registered: ' + username);
+    } else {
+      sys('⚠️ ' + user + ' register: ' + data.msg + ' (maybe already exists, try login)');
+    }
+  }
+
+  async function login(user) {
+    const username = document.getElementById('user' + user).value.trim();
+    const password = document.getElementById('pass' + user).value;
+    if (!username || !password) { sys('❌ ' + user + ': fill in username + password'); return; }
+
+    sys(user + ' logging in...');
+    const resp = await fetch('/api/user/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await resp.json();
+    if (data.code !== 200) {
+      sys('❌ ' + user + ' login failed: ' + data.msg);
+      return;
     }
 
-    // 发送私聊（完全适配你的后端 private_chat 协议）
-    function sendPrivateChat() {
-      if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    const token = data.data;
+    let uid;
+    try { uid = JSON.parse(atob(token.split('.')[1])).user_id; } catch(_) {}
 
-      const toUid = document.getElementById('toUid').value;
-      const content = document.getElementById('content').value;
-      if (!toUid || !content) { alert('请填写完整'); return; }
+    clients[user].token = token;
+    clients[user].uid = uid;
+    sys('✅ ' + user + ' logged in, uid=' + uid);
 
-      const msg = {
-        cmd: "private_chat",
-        seq: Date.now(),
-        data: {
-          to_uid: parseInt(toUid),
-          content: content,
-          msg_type: 1
-        }
-      };
+    // Auto-connect WS
+    connectWS(user);
+  }
 
-      const json = JSON.stringify(msg);
-      ws.send(json);
-      addLog(`📤 发送：${json}`, 'msg-send');
-    }
+  // ========== WebSocket ==========
 
-    function disconnectWS() {
-      if (ws) ws.close();
-    }
+  function connectWS(user) {
+    const c = clients[user];
+    if (!c.token) { sys('❌ ' + user + ': no token, login first'); return; }
+    if (c.ws) c.ws.close();
 
-    // 日志输出
-    function addLog(text, className) {
-      const d = new Date();
-      const time = d.toLocaleTimeString();
-      const div = document.createElement('div');
-      div.className = className;
-      div.innerHTML = `[${time}] ${text}`;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
-    }
-  </script>
+    const url = `ws://${location.host}/im/ws?token=${encodeURIComponent(c.token)}`;
+    sys(user + ' connecting WS...');
+    const ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      c.ws = ws;
+      status(user, 'connected', true);
+      sys('🔗 ' + user + ' WS connected');
+    };
+    ws.onclose = () => {
+      c.ws = null;
+      status(user, 'disconnected', false);
+      sys('🔌 ' + user + ' WS disconnected');
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        addLog('📩 ' + user + ' received: ' + JSON.stringify(msg), 'msg-in');
+      } catch(_) {
+        addLog('📩 ' + user + ' received: ' + e.data, 'msg-in');
+      }
+    };
+    ws.onerror = () => sys('⚠️ ' + user + ' WS error');
+  }
+
+  function disconnectWS(user) {
+    const c = clients[user];
+    if (c.ws) { c.ws.close(); c.ws = null; }
+    status(user, 'disconnected', false);
+  }
+
+  // ========== Send messages ==========
+
+  function sendRaw(user, toUid) {
+    const c = clients[user];
+    if (!c.ws || c.ws.readyState !== 1) { sys('❌ ' + user + ' not connected'); return; }
+
+    const input = document.getElementById('chatInput');
+    const content = input.value.trim();
+    if (!content) return;
+
+    const msg = {
+      cmd: 'private_chat',
+      seq: Date.now(),
+      data: { to_uid: toUid, content, msg_type: 1 }
+    };
+
+    c.ws.send(JSON.stringify(msg));
+    addLog('📤 ' + user + ' → ' + toUid + ': ' + content, 'msg-out');
+    input.value = '';
+    input.focus();
+  }
+
+  function sendChat() {
+    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both users must be logged in first'); return; }
+    sendRaw('A', clients.B.uid);
+  }
+
+  function sendChatB() {
+    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both users must be logged in first'); return; }
+    sendRaw('B', clients.A.uid);
+  }
+
+  // ========== Enter key ==========
+  document.getElementById('chatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChat();
+  });
+
+  // ========== Quick-start: register + login both ==========
+  sys('💡 Pre-filled: alice/alice123  bob/bob123');
+  sys('💡 Click Register on each, then Login & Connect on each.');
+  sys('💡 Or just Login if already registered.');
+</script>
 </body>
 </html>

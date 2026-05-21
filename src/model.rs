@@ -1,50 +1,69 @@
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, types::time::OffsetDateTime};
+use uuid::Uuid;
 use validator::Validate;
 
-// HTTP登录请求DTO
-// #[derive(Debug, Deserialize)]
-// pub struct LoginReq {
-//     pub username: String,
-//     pub password: String,
-// }
+#[derive(Debug, FromRow, Deserialize, Clone)]
+pub struct User {
+    pub id: Uuid,
+    pub username: String,
+    pub password_hash: String,
+    // pub nickname: Option<String>,
+    // pub avatar: Option<String>,
+    // pub online: bool,
+    pub created_at: Option<OffsetDateTime>,
+}
+// 注册请求体
+#[derive(Debug, Deserialize, Validate)]
+pub struct RegisterRequest {
+    #[validate(length(min = 3, max = 20, message = "用户名长度 3-20 位"))]
+    pub username: String,
+    #[validate(length(min = 6, max = 20, message = "密码长度 6-20 位"))]
+    pub password: String,
+}
 
-// // HTTP登录响应：返回Token
-// #[derive(Debug, Serialize)]
-// pub struct LoginResp {
-//     pub token: String,
-//     pub user_id: u64,
-// }
+// 登录请求体
+#[derive(Debug, Deserialize, Validate)]
+pub struct LoginRequest {
+    #[validate(length(min = 3, max = 20, message = "用户名长度 3-20 位"))]
+    pub username: String,
+    #[validate(length(min = 6, max = 20, message = "密码长度 6-20 位"))]
+    pub password: String,
+}
 
-// // WebSocket收发消息DTO（和HTTP完全独立）
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct WsMsg {
-//     pub msg_type: u8,   // 1单聊 2群聊
-//     pub target_id: u64, // 接收方ID
-//     pub content: String,
-// }
+// 登录响应（返回token）
+#[derive(Debug, Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub user_id: String,
+    pub username: String,
+}
 
-// // 自定义错误
-// #[derive(Debug, Error)]
-// pub enum ImError {
-//     #[error("登录失败")]
-//     LoginFail,
-//     #[error("Token无效")]
-//     InvalidToken,
-//     #[error("用户不在线")]
-//     UserOffline,
-// }
+// 统一返回格式
+#[derive(Serialize)]
+pub struct Res<T> {
+    pub code: i32,
+    pub msg: String,
+    pub data: Option<T>,
+}
 
-// #[derive(Debug, FromRow, Serialize, Clone)]
-// pub struct User {
-//     pub id: i64,
-//     pub username: String,
-//     pub password: String, // 存加密后的密码
-//     pub nickname: Option<String>,
-//     pub avatar: Option<String>,
-//     pub online: bool,
-//     // pub create_at: chrono::DateTime<chrono::Utc>,
-// }
+impl<T> Res<T> {
+    pub fn success(data: T, msg: &str) -> Self {
+        Self {
+            code: 200,
+            msg: msg.to_owned(),
+            data: Some(data),
+        }
+    }
+
+    pub fn error(code: i32, msg: &str) -> Self {
+        Self {
+            code,
+            msg: msg.to_owned(),
+            data: None,
+        }
+    }
+}
 
 // #[derive(Debug, Deserialize, Validate)]
 // pub struct RegisterDTO {
@@ -70,7 +89,7 @@ pub struct WsMessage {
 /// 私聊上行
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateChatReq {
-    pub to_uid: u64,
+    pub to_uid: Uuid,
     pub content: String,
     pub msg_type: u8,
     pub extra: Option<String>,
@@ -79,8 +98,8 @@ pub struct PrivateChatReq {
 /// 私聊下行推送
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivatePushMsg {
-    pub from_uid: u64,
-    pub to_uid: u64,
+    pub from_uid: Uuid,
+    pub to_uid: Uuid,
     pub content: String,
     pub msg_type: u8,
     pub send_time: u64,

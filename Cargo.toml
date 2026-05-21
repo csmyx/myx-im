@@ -14,9 +14,21 @@ thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "any", "postgres"] }
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio-rustls",
+    "any",
+    "postgres",
+    "uuid",
+    "time",
+] }
 validator = { version = "0.20.0", features = ["derive"] }
 anyhow = "1.0.102"
+chrono = { version = "0.4.44", features = ["serde"] }
+bcrypt = "0.19.1"
+jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
+uuid = { version = "1.23.1", features = ["serde", "v4"] }
+dotenv = "0.15.0"
+time = { version = "0.3.47", features = ["serde", "formatting", "parsing"] }
 
 [dev-dependencies]
 http-body-util = "0.1.3"

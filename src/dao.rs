@@ -37,25 +37,63 @@ pub async fn insert_user(
 }
  */
 use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::model::User;
 pub async fn save_message(
     pool: &PgPool,
-    from_uid: u64,
-    to_uid: u64,
+    from_uid: Uuid,
+    to_uid: Uuid,
     content: &str,
     msg_type: u8,
-) -> anyhow::Result<i64> {
-    let id = sqlx::query!(
-        r#"
-            INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type)
-            VALUES ($1, $2, $3, $4)
-            "#,
-        from_uid as i64,
-        to_uid as i64,
-        content,
-        msg_type as i16,
+) -> anyhow::Result<u64> {
+    let res = sqlx::query(
+        "INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type) VALUES ($1, $2, $3, $4)",
     )
+    .bind(from_uid)
+    .bind(to_uid)
+    .bind(content)
+    .bind(msg_type as i16)
     .execute(pool)
     .await?;
 
-    Ok(0)
+    Ok(res.rows_affected())
+}
+
+pub async fn save_user(
+    pool: &PgPool,
+    user_id: Uuid,
+    user_name: String,
+    password_hash: String,
+) -> anyhow::Result<Uuid> {
+    let res = sqlx::query!(
+        r#"
+INSERT INTO im_users (id, username, password_hash)
+VALUES ($1, $2, $3)
+RETURNING id
+"#,
+        user_id,
+        user_name,
+        password_hash,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(res.id)
+}
+
+pub async fn find_user_by_username(pool: &PgPool, user_name: &str) -> anyhow::Result<User> {
+    let user = sqlx::query_as!(
+        User,
+        r#"
+SELECT id, username, password_hash, created_at
+FROM im_users
+WHERE username = $1
+"#,
+        user_name,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(user)
 }

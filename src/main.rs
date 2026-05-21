@@ -1,21 +1,24 @@
 use axum::{
-    Router,
+    Json, Router,
     extract::{
-        FromRef, FromRequestParts, Path, State, WebSocketUpgrade,
+        Query, State, WebSocketUpgrade,
         ws::{Message, Utf8Bytes, WebSocket},
     },
-    http::{StatusCode, request::Parts},
+    http::StatusCode,
     response::{Html, IntoResponse},
-    routing::get,
+    routing::{get, post},
 };
 use futures_util::{SinkExt, StreamExt};
 use myx_im::{
-    model::{PrivateChatReq, WsMessage},
+    jwt::{create_token, verify_token},
+    model::{LoginRequest, PrivateChatReq, RegisterRequest, Res, WsMessage},
     state::{AppState, init_app_state},
 };
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use tokio::{net::TcpListener, sync::mpsc};
-use tracing_subscriber::{filter::targets, layer::SubscriberExt, util::SubscriberInitExt};
+use serde::Deserialize;
+use sqlx::postgres::PgPoolOptions;
+use tokio::sync::mpsc;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use uuid::Uuid;
 
 use std::{sync::Arc, time::Duration};
 
@@ -55,10 +58,10 @@ async fn main() {
         // ==================== 基础页面 ====================
         .route("/", get(index_handler))
         // ==================== WebSocket 长连接（IM 核心） ====================
-        .route("/im/ws/{uid}", get(websocket_handler))
+        .route("/im/ws", get(websocket_handler))
         // ==================== 用户模块 API ====================
-        // .route("/api/user/register", post(user_register_handler))
-        // .route("/api/user/login", post(user_login_handler))
+        .route("/api/user/register", post(user_register_handler))
+        .route("/api/user/login", post(user_login_handler))
         // .route("/api/user/info", get(user_info_handler))
         // .route("/api/user/profile", put(user_update_profile_handler))
         // .route("/api/user/search", get(user_search_handler))
@@ -83,68 +86,67 @@ async fn main() {
     let _ = axum::serve(listener, app).await;
 }
 
-// This function deals with a single websocket connection, i.e., a single
-// connected client / user, for which we will spawn two independent tasks (for
-// receiving / sending chat messages).
+#[derive(Debug, Deserialize)]
+struct WsQuery {
+    token: String,
+}
+
 async fn websocket_handler(
     ws: WebSocketUpgrade,
-    Path(uid): Path<u64>,
+    Query(query): Query<WsQuery>,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
     tracing::debug!("websocket_handler");
-    ws.on_upgrade(move |socket| handle_im_websocket(socket, uid, state))
+    // Verify JWT token before upgrading
+    let claims = match verify_token(&query.token, &state.config) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("WS auth failed: {e}");
+            return (StatusCode::UNAUTHORIZED, "invalid token").into_response();
+        }
+    };
+    let user_id = claims.user_id;
+    ws.on_upgrade(move |socket| handle_im_websocket(socket, user_id, state))
 }
 
-async fn handle_im_websocket(mut socket: WebSocket, uid: u64, state: Arc<AppState>) {
-    tracing::debug!("handle_im_websocket");
+async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppState>) {
+    tracing::debug!("handle_im_websocket user={user_id}");
 
-    // By splitting, we can send and receive at the same time.
     let (mut sender, mut receiver) = socket.split();
 
     let (tx, mut rx) = mpsc::unbounded_channel();
-    state.insert_online_user(uid, tx);
+    state.insert_online_user(user_id, tx);
 
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            // tracing::debug!("send to client: {msg:?}");
             sender.send(Message::Text(msg)).await.unwrap();
         }
     });
 
     while let Some(Ok(msg)) = receiver.next().await {
         match msg {
-            // 业务文本消息：走你自定义 JSON 协议
             Message::Text(raw) => {
-                let text = raw.as_str();
-                // 统一解析你的 cmd 消息协议
-                handle_biz_msg(uid, text, state.clone()).await;
+                handle_biz_msg(user_id, raw.as_str(), state.clone()).await;
             }
-
-            // 底层 Ping：框架自动回复 Pong，你不用管
             Message::Ping(_) => {}
             Message::Pong(_) => {}
-
-            // 连接关闭
             Message::Close(_) => {
-                // 下线清理逻辑
-                // state.offline_user(uid);
                 break;
             }
             _ => {}
         }
     }
-    todo!()
 }
 
-async fn handle_biz_msg(uid: u64, text: &str, state: Arc<AppState>) {
+async fn handle_biz_msg(uid: Uuid, text: &str, state: Arc<AppState>) {
     let ws_msg: WsMessage = serde_json::from_str(&text).expect("failed to parse WsMessage");
     match ws_msg.cmd.as_str() {
-        "hearbeat" => {}
+        "heartbeat" => {}
         "private_chat" => {
             let req: PrivateChatReq =
                 serde_json::from_value(ws_msg.data).expect("failed to parse private_chat request");
 
-            state
+            let _ = state
                 .save_message(uid, req.to_uid, &req.content, req.msg_type)
                 .await;
             match req.msg_type {
@@ -153,10 +155,6 @@ async fn handle_biz_msg(uid: u64, text: &str, state: Arc<AppState>) {
                     let content = Utf8Bytes::from(req.content);
                     state.send_to_user(req.to_uid, content);
                 }
-                2 => {
-                    tracing::debug!("send to user: {}", req.content);
-                    todo!()
-                }
                 _ => {}
             }
         }
@@ -164,9 +162,94 @@ async fn handle_biz_msg(uid: u64, text: &str, state: Arc<AppState>) {
     }
 }
 
-// async fn push_to_user(state: Arc<AppState>, uid: u64, msg: &str) {
-//     state.send_to_user(uid, msg);
-// }
+async fn user_register_handler(
+    State(state): State<Arc<AppState>>,
+    req: Json<RegisterRequest>,
+) -> impl IntoResponse {
+    let password = &req.password;
+    let Ok(password_hash) = bcrypt::hash(password, bcrypt::DEFAULT_COST) else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(Res::error(500, "failed to hash password")),
+        );
+    };
+    let user_name = req.username.to_owned();
+    let user_id = Uuid::new_v4();
+
+    match state.save_user(user_id, user_name, password_hash).await {
+        Ok(uid) => {
+            let Ok(token) = create_token(uid, &state.config) else {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(Res::error(500, "failed to create token")),
+                );
+            };
+
+            (StatusCode::OK, Json(Res::success(token, "user created")))
+        }
+        Err(e) => {
+            if e.to_string().contains("unique constraint") {
+                return (
+                    StatusCode::CONFLICT,
+                    Json(Res::error(409, "user already exists")),
+                );
+            }
+
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::error(500, "register failed")),
+            )
+        }
+    }
+}
+
+async fn user_login_handler(
+    State(state): State<Arc<AppState>>,
+    req: Json<LoginRequest>,
+) -> impl IntoResponse {
+    // 1. basic validation
+    if req.username.is_empty() || req.password.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(Res::error(400, "user name or password is empty")),
+        );
+    }
+
+    // 2. query user
+    let user = match state.find_user_by_username(&req.username).await {
+        Ok(user) => user,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::error(500, &e.to_string())),
+            );
+        }
+    };
+
+    // 3. verify password
+    match bcrypt::verify(&req.password, &user.password_hash) {
+        Ok(true) => {} // 密码正确
+        _ => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(Res::error(401, "password is incorrect")),
+            );
+        }
+    }
+
+    // 4. generate token
+    let token = match create_token(user.id, &state.config) {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::error(500, "token generation failed")),
+            );
+        }
+    };
+
+    (StatusCode::OK, Json(Res::success(token, "login success")))
+}
 
 async fn index_handler() -> Html<&'static str> {
     Html(std::include_str!("../chat.html"))
