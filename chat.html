@@ -2,10 +2,11 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>myx-im test</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100vh; overflow: hidden; }
+    html, body { height: 100dvh; overflow: hidden; }
     body { font: 12px monospace; background: #1e1e1e; color: #d4d4d4; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
     .row { display: flex; gap: 8px; }
     .panel { flex: 1; border: 1px solid #3c3c3c; border-radius: 4px; padding: 6px 8px; background: #252526; }
@@ -22,13 +23,36 @@
     .bar { display: flex; gap: 6px; }
     .bar input { flex: 1; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 3px; background: #3c3c3c; color: #d4d4d4; font: 12px monospace; }
     .bar input:focus { outline: none; border-color: #569cd6; }
-    .bar button { padding: 4px 10px; border: none; border-radius: 3px; cursor: pointer; font: 11px monospace; font-weight: bold; background: #0e639c; color: #fff; }
+    .bar button { padding: 4px 10px; border: none; border-radius: 3px; cursor: pointer; font: 11px monospace; font-weight: bold; background: #0e639c; color: #fff; white-space: nowrap; }
     .bar button:hover { background: #1177bb; }
 
-    #log { flex: 1; overflow-y: auto; background: #1e1e1e; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 4px; line-height: 1.4; min-height: 0; }
+    #log { flex: 1; overflow-y: auto; background: #1e1e1e; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 4px; line-height: 1.4; min-height: 0; -webkit-overflow-scrolling: touch; }
     .msg-out { color: #569cd6; }
     .msg-in  { color: #ce9178; }
     .msg-sys { color: #6a9955; }
+
+    @media (max-width: 600px) {
+      body { font-size: 13px; padding: 4px; gap: 4px; }
+      .row { flex-direction: column; gap: 4px; }
+      .panel { padding: 8px 10px; }
+      .panel h2 { font-size: 13px; margin-bottom: 6px; }
+      .panel input { padding: 8px 8px; font-size: 15px; margin: 2px 0; }
+      .panel button { padding: 8px 14px; font-size: 13px; margin: 4px 4px 0 0; }
+      .status { font-size: 11px; padding: 2px 6px; }
+      .bar { gap: 4px; }
+      .bar input { padding: 8px 8px; font-size: 15px; }
+      .bar button { padding: 8px 14px; font-size: 13px; }
+      #log { padding: 6px 8px; font-size: 12px; }
+    }
+
+    @media (max-width: 380px) {
+      body { font-size: 12px; padding: 2px; gap: 2px; }
+      .panel { padding: 6px 6px; }
+      .panel input { padding: 6px 6px; font-size: 14px; }
+      .panel button { padding: 6px 10px; font-size: 12px; }
+      .bar input { padding: 6px 6px; font-size: 14px; }
+      .bar button { padding: 6px 10px; font-size: 12px; }
+    }
   </style>
 </head>
 <body>
