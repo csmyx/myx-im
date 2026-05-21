@@ -1,9 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use myx_im::{
-    router::app_router,
-    state::init_app_state,
-};
+use myx_im::{router::app_router, state::init_app_state};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
