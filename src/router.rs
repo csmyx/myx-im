@@ -1,6 +1,9 @@
 use axum::{
     Json, Router,
-    extract::{Query, State, WebSocketUpgrade, ws::{Message, Utf8Bytes, WebSocket}},
+    extract::{
+        Query, State, WebSocketUpgrade,
+        ws::{Message, Utf8Bytes, WebSocket},
+    },
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
@@ -13,7 +16,7 @@ use uuid::Uuid;
 
 use crate::dao;
 use crate::jwt::verify_token;
-use crate::model::{LoginRequest, PrivateChatReq, RegisterRequest, WsMessage};
+use crate::model::{LoginRequest, PrivateChatReq, RegisterRequest, Res, WsMessage};
 use crate::service;
 use crate::state::AppState;
 
@@ -23,6 +26,7 @@ pub fn app_router(state: Arc<AppState>) -> Router {
         .route("/im/ws", get(websocket_handler))
         .route("/api/user/register", post(user_register_handler))
         .route("/api/user/login", post(user_login_handler))
+        .route("/api/user/logout", post(user_logout_handler))
         .with_state(state)
 }
 
@@ -110,4 +114,21 @@ async fn user_login_handler(
     Json(req): Json<LoginRequest>,
 ) -> impl IntoResponse {
     service::login_user(&state.pg_pool, &state.config, req.username, req.password).await
+}
+
+async fn user_logout_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<LoginRequest>,
+) -> impl IntoResponse {
+    match service::logout_user(&state.pg_pool, req.username, req.password).await {
+        Ok(uid) => {
+            state.remove_online_user(uid);
+            (
+                StatusCode::OK,
+                Json(Res::success("".to_string(), "logout success")),
+            )
+                .into_response()
+        }
+        Err(err) => err.into_response(),
+    }
 }

@@ -39,6 +39,14 @@ impl AppState {
             tracing::debug!("user {uid} disconnected, cleaned up: {e}");
         }
     }
+
+    pub fn remove_online_user(&self, uid: Uuid) {
+        let Ok(mut mp) = self.online_users.lock() else {
+            return;
+        };
+        mp.remove(&uid);
+        tracing::debug!("user {uid} removed from online_users (logout)");
+    }
 }
 
 impl OnlineUser {

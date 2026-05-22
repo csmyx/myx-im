@@ -91,3 +91,38 @@ pub async fn login_user(
 
     (StatusCode::OK, Json(Res::success(token, "login success")))
 }
+
+pub(crate) async fn logout_user(
+    pool: &PgPool,
+    username: String,
+    password: String,
+) -> Result<Uuid, (StatusCode, Json<Res<String>>)> {
+    if username.is_empty() || password.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(Res::error(400, "user name or password is empty")),
+        ));
+    }
+
+    let user = match dao::find_user_by_username(pool, &username).await {
+        Ok(user) => user,
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::error(500, &e.to_string())),
+            ));
+        }
+    };
+
+    match bcrypt::verify(&password, &user.password_hash) {
+        Ok(true) => {}
+        _ => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(Res::error(401, "password is incorrect")),
+            ));
+        }
+    }
+
+    Ok(user.id)
+}
