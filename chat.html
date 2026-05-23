@@ -1048,6 +1048,7 @@
         }
 
         function doLogout() {
+            clearTimeout(reconnectTimer);
             if (ws) ws.close();
             me = null; ws = null; peers = {}; messages = []; activePeer = null; activeGroup = null; convCache = [];
             groupCache = []; unreadCounts = {}; pendingMsgs = {}; msgById = {};
@@ -1060,19 +1061,35 @@
         }
 
         // ===== WebSocket =====
+        let reconnectTimer = null;
+
         function connectWS() {
-            if (ws) ws.close();
+            if (ws) {
+                ws.onclose = null; // prevent reconnect trigger on intentional close
+                if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                    ws.close();
+                }
+            }
             ws = new WebSocket(`ws://${location.host}/im/ws?token=${encodeURIComponent(me.token)}`);
             ws.onopen = () => {
+                clearTimeout(reconnectTimer);
                 authScreen.style.display = 'none';
                 sidebar.style.display = 'flex';
                 main.style.display = 'flex';
                 $('myAvatar').textContent = me.username[0].toUpperCase();
                 $('myName').textContent = me.username;
                 $('myUid').textContent = me.uid;
+                $('chStatus').textContent = '';
                 loadConversations();
             };
-            ws.onclose = () => { ws = null; };
+            ws.onclose = () => {
+                ws = null;
+                $('chStatus').textContent = 'reconnecting...';
+                $('chStatus').style.color = 'var(--danger)';
+                // Auto-reconnect after 2s, then 5s, then 10s
+                const delay = reconnectTimer ? 5000 : 2000;
+                reconnectTimer = setTimeout(connectWS, delay);
+            };
             ws.onmessage = (e) => {
                 try {
                     const msg = JSON.parse(e.data);
@@ -1426,6 +1443,7 @@
             chatArea.style.display = 'flex';
             $('chAvatar').textContent = (peers[peerUid].username || '?')[0].toUpperCase();
             $('chName').textContent = peers[peerUid].username;
+            $('chStatus').textContent = '';
             messages = [];
             msgList.innerHTML = '';
             msgList.appendChild(loadMore);
@@ -1500,7 +1518,10 @@
         }
 
         function sendMessage() {
-            if (!ws || ws.readyState !== 1) return;
+            if (!ws || ws.readyState !== 1) {
+                if (!ws) console.warn('sendMessage: WS not connected');
+                return;
+            }
             const content = msgInput.value.trim();
             if (!content) return;
 
@@ -1517,6 +1538,16 @@
                 const el = appendMsg(msg, '<span class="pending">◷ Sending...</span>');
                 pendingMsgs[seq] = { el, msg };
                 ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: activePeer, content, msg_type: 1, client_msg_id: cid } }));
+            } else {
+                // No chat selected — flash the send button briefly
+                const btn = $('btnSend');
+                btn.style.background = 'var(--danger)';
+                btn.textContent = 'Open a chat first';
+                setTimeout(() => {
+                    btn.style.background = 'var(--primary)';
+                    btn.textContent = 'Send';
+                }, 1500);
+                return;
             }
             msgInput.value = '';
             msgInput.style.height = 'auto';
@@ -1557,8 +1588,14 @@
             $('searchInput').value = '';
             searchResults.classList.remove('show');
             peers[peerUid] = { username: peerName };
+            // Add to conv list immediately so it appears in sidebar
+            const exists = convCache.find(c => c.peer_uid === peerUid);
+            if (!exists) {
+                convCache.unshift({ peer_uid: peerUid, peer_name: peerName, last_msg: '', last_time: Date.now(), last_msg_type: 1, last_msg_id: 0 });
+            }
+            renderConvList();
             openChat(peerUid, peerName);
-            // Refresh conv list after a short delay to pick up new conversation
+            // Refresh from server after a short delay for accurate data
             setTimeout(loadConversations, 500);
         }
 
