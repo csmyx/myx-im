@@ -120,6 +120,9 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
             _ => {}
         }
     }
+
+    tracing::info!("WS disconnected: user={user_id}");
+    state.remove_online_user(user_id);
 }
 
 async fn handle_biz_msg(
@@ -169,6 +172,8 @@ async fn handle_biz_msg(
                             r#"{{"cmd":"private_chat_ack","seq":{},"data":{}}}"#,
                             ws_msg.seq, json,
                         )));
+                    } else {
+                        tracing::error!("failed to serialize ACK for msg_id={msg_id}");
                     }
 
                     // Push to recipient
@@ -181,6 +186,8 @@ async fn handle_biz_msg(
                     };
                     if let Ok(json) = serde_json::to_string(&push) {
                         state.send_to_user(req.to_uid, Utf8Bytes::from(json));
+                    } else {
+                        tracing::error!("failed to serialize push msg to user={}", req.to_uid);
                     }
                 }
                 Err(e) => {
@@ -192,7 +199,9 @@ async fn handle_biz_msg(
                 }
             }
         }
-        _ => {}
+        other => {
+            tracing::warn!("unknown WS command: {other} from user={uid}");
+        }
     }
 }
 

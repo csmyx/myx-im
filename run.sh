@@ -12,4 +12,4 @@ if ! docker ps --format '{{.Names}}' | grep -q '^myx-im-db$'; then
     echo "PostgreSQL is ready."
 fi
 
-RUST_BACKTRACE=1 cargo run
+RUST_LOG=info RUST_BACKTRACE=1 cargo run

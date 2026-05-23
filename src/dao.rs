@@ -1,42 +1,3 @@
-// use crate::model::{RegisterDTO, User};
-// use sqlx::PgPool;
-
-// 检查用户名是否存在
-// pub async fn is_username_exists(pool: &PgPool, username: &str) -> Result<bool, sqlx::Error> {
-//     let (exists,) = sqlx::query!(
-//         r#"SELECT EXISTS(SELECT 1 FROM "im_users" WHERE username = $1)"#,
-//         username
-//     )
-//     .fetch_one(pool)
-//     .await?;
-
-//     Ok(exists.unwrap_or(false))
-// }
-/*
-/// 插入用户（注册）
-pub async fn insert_user(
-    pool: &PgPool,
-    dto: &RegisterDTO,
-    hash_pwd: &str,
-) -> Result<User, sqlx::Error> {
-    let user = sqlx::query_as!(
-        User,
-        r#"
-        INSERT INTO "user" (username, password, nickname)
-        VALUES ($1, $2, $3)
-        RETURNING id, username, password, nickname, avatar, online, create_at
-        "#,
-        dto.username,
-        hash_pwd,
-        dto.nickname
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(user)
-}
- */
-
 use crate::model::{ChatHistoryItem, ConversationItem, User, UserSearchItem};
 
 use sqlx::PgPool;
@@ -56,7 +17,8 @@ pub async fn save_message(
         msg_type as i16,
     )
     .fetch_one(pool)
-    .await?;
+    .await
+    .map_err(|e| { tracing::error!("save_message failed: {e}"); e })?;
 
     Ok(res.id)
 }
@@ -74,7 +36,11 @@ pub async fn save_user(
         password_hash,
     )
     .fetch_one(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("save_user failed: {e}");
+        e
+    })?;
 
     Ok(res.id)
 }
@@ -86,7 +52,11 @@ pub async fn find_user_by_username(pool: &PgPool, user_name: &str) -> anyhow::Re
         user_name,
     )
     .fetch_optional(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("find_user_by_username failed: {e}");
+        e
+    })?;
 
     Ok(user)
 }
@@ -120,7 +90,11 @@ pub async fn get_chat_history(
         limit,
     )
     .fetch_all(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("get_chat_history failed: {e}");
+        e
+    })?;
 
     Ok(rows)
 }
@@ -149,7 +123,11 @@ pub async fn get_undelivered_messages(
         limit,
     )
     .fetch_all(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("get_undelivered_messages failed: {e}");
+        e
+    })?;
 
     Ok(rows)
 }
@@ -161,7 +139,11 @@ pub async fn mark_messages_delivered(pool: &PgPool, msg_ids: &[i64]) -> anyhow::
     sqlx::query("UPDATE im_chat_messages SET delivered = TRUE WHERE id = ANY($1)")
         .bind(msg_ids)
         .execute(pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("mark_messages_delivered failed: {e}");
+            e
+        })?;
     Ok(())
 }
 
@@ -187,7 +169,11 @@ pub async fn get_conversations(pool: &PgPool, uid: Uuid) -> anyhow::Result<Vec<C
         uid,
     )
     .fetch_all(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("get_conversations failed: {e}");
+        e
+    })?;
 
     Ok(rows)
 }
@@ -207,7 +193,11 @@ pub async fn search_users(
         limit,
     )
     .fetch_all(pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("search_users failed: {e}");
+        e
+    })?;
 
     Ok(rows)
 }

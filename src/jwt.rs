@@ -28,7 +28,11 @@ pub fn create_token(user_id: Uuid, config: &Config) -> anyhow::Result<String> {
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(config.jwt_secret.as_bytes()),
-    )?;
+    )
+    .map_err(|e| {
+        tracing::error!("JWT encode failed for user {user_id}: {e}");
+        e
+    })?;
 
     Ok(token)
 }
@@ -39,7 +43,11 @@ pub fn verify_token(token: &str, config: &Config) -> anyhow::Result<Claims> {
         token,
         &DecodingKey::from_secret(config.jwt_secret.as_bytes()),
         &Validation::new(Algorithm::HS256),
-    )?;
+    )
+    .map_err(|e| {
+        tracing::warn!("JWT verify failed: {e}");
+        e
+    })?;
 
     Ok(data.claims)
 }
