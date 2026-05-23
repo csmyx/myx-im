@@ -26,18 +26,21 @@ impl AppState {
         mp.insert(uid, OnlineUser { tx });
     }
 
-    pub fn send_to_user(&self, uid: Uuid, msg: Utf8Bytes) {
+    /// Try to deliver a message to an online user. Returns true if delivered, false if user is offline.
+    pub fn send_to_user(&self, uid: Uuid, msg: Utf8Bytes) -> bool {
         let Ok(mut mp) = self.online_users.lock() else {
-            return;
+            return false;
         };
         let Some(sender) = mp.get(&uid) else {
             tracing::debug!("user {uid} offline, message dropped");
-            return;
+            return false;
         };
         if let Err(e) = sender.send(msg) {
             mp.remove(&uid);
             tracing::debug!("user {uid} disconnected, cleaned up: {e}");
+            return false;
         }
+        true
     }
 
     pub fn remove_online_user(&self, uid: Uuid) {

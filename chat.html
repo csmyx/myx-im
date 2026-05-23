@@ -36,6 +36,7 @@
         html,
         body {
             height: 100dvh;
+            height: 100vh;
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
@@ -383,6 +384,18 @@
             color: var(--text2);
         }
 
+        .badge {
+            display: inline-block;
+            background: var(--danger);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
         /* ===== Chat Header ===== */
         .chat-header {
             padding: 12px 18px;
@@ -496,6 +509,24 @@
             margin-top: 2px;
         }
 
+        .msg-status {
+            font-size: 10px;
+            margin-top: 2px;
+            text-align: right;
+        }
+
+        .msg-status .delivered {
+            color: #6eca6e;
+        }
+
+        .msg-status .pending {
+            color: var(--text2);
+        }
+
+        .msg-status .undelivered {
+            color: #e5c07b;
+        }
+
         /* ===== Input Bar ===== */
         .input-bar {
             padding: 10px 16px;
@@ -544,6 +575,21 @@
 
         /* ===== Responsive ===== */
         @media (max-width: 700px) {
+            :root {
+                --sidebar-w: 100%;
+            }
+
+            body {
+                font-size: 15px;
+                overscroll-behavior: none;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            #app {
+                height: 100dvh;
+                height: 100vh;
+            }
+
             #sidebar {
                 width: 100%;
                 min-width: 100%;
@@ -551,6 +597,10 @@
 
             #main {
                 display: none;
+            }
+
+            #main.chat-open {
+                display: flex;
             }
 
             .chat-open #sidebar {
@@ -561,8 +611,124 @@
                 display: flex;
             }
 
+            /* Safe area padding */
+            .sidebar-header {
+                padding: max(14px, env(safe-area-inset-top)) 16px 14px 16px;
+            }
+
+            .chat-header {
+                padding: max(12px, env(safe-area-inset-top)) 16px 12px 16px;
+            }
+
             .chat-header .btn-back {
-                display: block;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                font-size: 20px;
+                flex-shrink: 0;
+            }
+
+            .input-bar {
+                padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+            }
+
+            /* Larger touch targets */
+            .conv-item {
+                padding: 14px 16px;
+            }
+
+            .conv-item .c-avatar {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+            }
+
+            .conv-item .c-name {
+                font-size: 15px;
+            }
+
+            .conv-item .c-last {
+                font-size: 13px;
+            }
+
+            .sidebar-header .btn-logout {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+
+            /* Wider messages on mobile */
+            .msg-list {
+                padding: 12px 10px;
+            }
+
+            .msg-row {
+                max-width: 88%;
+            }
+
+            .msg-bubble {
+                font-size: 15px;
+                padding: 10px 14px;
+            }
+
+            .msg-row .m-avatar {
+                width: 28px;
+                height: 28px;
+                font-size: 10px;
+            }
+
+            /* Better auth box */
+            .auth-box {
+                padding: 28px 20px;
+            }
+
+            .auth-box h1 {
+                font-size: 24px;
+            }
+
+            .auth-box input {
+                padding: 12px;
+                font-size: 16px;
+                /* prevent iOS zoom on focus */
+            }
+
+            .auth-box .btn {
+                padding: 12px;
+                font-size: 15px;
+            }
+
+            /* Bigger search input */
+            .search-wrap input {
+                padding: 10px 14px;
+                font-size: 16px;
+            }
+
+            .search-results .item {
+                padding: 12px 14px;
+            }
+
+            .input-bar textarea {
+                font-size: 16px;
+                padding: 10px 12px;
+            }
+
+            .input-bar .btn-send {
+                padding: 10px 16px;
+                font-size: 15px;
+            }
+
+            /* Empty state */
+            .conv-list>div {
+                padding: 40px 20px !important;
+                font-size: 14px !important;
+            }
+
+            #noChat {
+                font-size: 15px;
+                padding: 40px 20px;
+                text-align: center;
             }
         }
     </style>
@@ -639,6 +805,9 @@
         let messages = [];        // current chat messages
         let activePeer = null;    // Uuid of active chat peer
         let convCache = [];       // cached conversation list
+        let unreadCounts = {};    // peer_uid → number of unread messages
+        let pendingMsgs = {};     // seq → { el, msg } for delivery status updates
+        let msgById = {};         // msg_id → DOM element for late delivery updates
 
         const PAGE_SIZE = 40;
 
@@ -693,6 +862,7 @@
         function doLogout() {
             if (ws) ws.close();
             me = null; ws = null; peers = {}; messages = []; activePeer = null; convCache = [];
+            unreadCounts = {}; pendingMsgs = {}; msgById = {};
             authScreen.style.display = 'flex';
             sidebar.style.display = 'none';
             main.style.display = 'none';
@@ -722,6 +892,8 @@
                         handlePush(msg);
                     } else if (msg.cmd === 'private_chat_ack') {
                         handleAck(msg);
+                    } else if (msg.cmd === 'delivery_update') {
+                        handleDeliveryUpdate(msg);
                     }
                 } catch (_) { }
             };
@@ -731,17 +903,50 @@
             const peerUid = msg.from_uid === me.uid ? msg.to_uid : msg.from_uid;
             if (!peers[peerUid]) {
                 peers[peerUid] = { username: msg.from_uid === me.uid ? 'You' : peerUid.substring(0, 8) };
-                // Refresh conv list later
             }
             if (activePeer === peerUid) {
                 appendMsg({ msg_id: Date.now(), from_uid: msg.from_uid, to_uid: msg.to_uid, content: msg.content, msg_type: msg.msg_type, send_time: msg.send_time });
+            } else {
+                // Not the active conversation — count as unread
+                unreadCounts[peerUid] = (unreadCounts[peerUid] || 0) + 1;
+                renderConvList();
             }
             // Refresh conversations to update last message
             loadConversations();
         }
 
         function handleAck(msg) {
-            // Update the pending message if we track it
+            const seq = msg.seq;
+            const entry = pendingMsgs[seq];
+            if (!entry) return;
+            const status = entry.el.querySelector('.msg-status');
+            if (!status) return;
+            const delivered = msg.data && msg.data.delivered;
+            if (delivered) {
+                status.innerHTML = '<span class="delivered">✓ Delivered</span>';
+            } else {
+                status.innerHTML = '<span class="undelivered">◷ Sent (offline)</span>';
+            }
+            // Store msg_id mapping for late delivery updates
+            if (msg.data && msg.data.msg_id) {
+                entry.msg.msg_id = msg.data.msg_id;
+                msgById[msg.data.msg_id] = entry.el;
+            }
+            // Clean up pending entry
+            delete pendingMsgs[seq];
+        }
+
+        function handleDeliveryUpdate(msg) {
+            const ids = msg.data && msg.data.msg_ids;
+            if (!ids) return;
+            for (const mid of ids) {
+                const el = msgById[mid];
+                if (!el) continue;
+                const status = el.querySelector('.msg-status');
+                if (status) {
+                    status.innerHTML = '<span class="delivered">✓ Delivered</span>';
+                }
+            }
         }
 
         // ===== Conversations =====
@@ -762,7 +967,7 @@
                     const time = new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     return `<div class="conv-item${activePeer === c.peer_uid ? ' active' : ''}" onclick="openChat('${c.peer_uid}','${c.peer_name}')">
                 <div class="c-avatar">${(c.peer_name || '?')[0].toUpperCase()}</div>
-                <div class="c-info"><div class="c-name">${c.peer_name}</div><div class="c-last">${escHtml(c.last_msg)}</div></div>
+                <div class="c-info"><div class="c-name">${c.peer_name}${unreadCounts[c.peer_uid] ? ` <span class="badge">${unreadCounts[c.peer_uid]}</span>` : ''}</div><div class="c-last">${escHtml(c.last_msg)}</div></div>
                 <div class="c-meta"><div class="c-time">${time}</div></div>
             </div>`;
                 }).join('');
@@ -774,7 +979,15 @@
         function openChat(peerUid, peerName) {
             activePeer = peerUid;
             if (!peers[peerUid]) peers[peerUid] = { username: peerName || peerUid.substring(0, 8) };
+            // Clear unread and notify server
+            if (unreadCounts[peerUid]) {
+                delete unreadCounts[peerUid];
+                if (ws && ws.readyState === 1) {
+                    ws.send(JSON.stringify({ cmd: 'mark_delivered', seq: 0, data: { peer_uid: peerUid } }));
+                }
+            }
             document.body.classList.add('chat-open');
+            main.classList.add('chat-open');
             noChat.style.display = 'none';
             chatArea.style.display = 'flex';
             $('chAvatar').textContent = (peers[peerUid].username || '?')[0].toUpperCase();
@@ -791,6 +1004,7 @@
         function closeChat() {
             activePeer = null;
             document.body.classList.remove('chat-open');
+            main.classList.remove('chat-open');
             noChat.style.display = 'flex';
             chatArea.style.display = 'none';
             messages = [];
@@ -825,24 +1039,28 @@
             msgList.scrollTop = msgList.scrollHeight;
         }
 
-        function appendMsg(m) {
+        function appendMsg(m, status) {
             const isMine = m.from_uid === me.uid;
             const name = isMine ? me.username : (peers[m.from_uid]?.username || m.from_uid.substring(0, 8));
             const time = new Date(Number(m.send_time)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const div = document.createElement('div');
             div.className = 'msg-row' + (isMine ? ' mine' : '');
             div.innerHTML = `<div class="m-avatar">${name[0].toUpperCase()}</div>
-        <div><div class="msg-bubble">${escHtml(m.content)}</div><div class="msg-time">${time}</div></div>`;
+        <div><div class="msg-bubble">${escHtml(m.content)}</div><div class="msg-time">${time}</div><div class="msg-status">${status || ''}</div></div>`;
             msgList.appendChild(div);
             msgList.scrollTop = msgList.scrollHeight;
+            return div;
         }
 
         function sendMessage() {
             if (!ws || ws.readyState !== 1 || !activePeer) return;
             const content = msgInput.value.trim();
             if (!content) return;
-            ws.send(JSON.stringify({ cmd: 'private_chat', seq: Date.now(), data: { to_uid: activePeer, content, msg_type: 1 } }));
-            appendMsg({ msg_id: Date.now(), from_uid: me.uid, to_uid: activePeer, content, msg_type: 1, send_time: Date.now() });
+            const seq = Date.now();
+            const msg = { msg_id: seq, from_uid: me.uid, to_uid: activePeer, content, msg_type: 1, send_time: Date.now() };
+            const el = appendMsg(msg, '<span class="pending">◷ Sending...</span>');
+            pendingMsgs[seq] = { el, msg };
+            ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: activePeer, content, msg_type: 1 } }));
             msgInput.value = '';
             msgInput.style.height = 'auto';
             msgInput.focus();
@@ -888,6 +1106,17 @@
         document.addEventListener('click', e => {
             if (!e.target.closest('.search-wrap')) searchResults.classList.remove('show');
         });
+
+        // ===== Mobile keyboard handling (iOS) =====
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                const keyboardHeight = window.innerHeight - window.visualViewport.height;
+                if (keyboardHeight > 100) {
+                    // Keyboard is open — scroll to bottom
+                    msgList.scrollTop = msgList.scrollHeight;
+                }
+            });
+        }
     </script>
 </body>
 

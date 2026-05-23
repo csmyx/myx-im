@@ -17,8 +17,9 @@ use uuid::Uuid;
 use crate::dao;
 use crate::jwt::verify_token;
 use crate::model::{
-    ChatHistoryItem, ConversationItem, HistoryQuery, LoginRequest, PrivateChatAck, PrivateChatReq,
-    PrivatePushMsg, RegisterRequest, Res, SearchQuery, TokenQuery, UserSearchItem, WsMessage,
+    ChatHistoryItem, ConversationItem, DeliveryUpdate, HistoryQuery, LoginRequest,
+    MarkDeliveredReq, PrivateChatAck, PrivateChatReq, PrivatePushMsg, RegisterRequest, Res,
+    SearchQuery, TokenQuery, UserSearchItem, WsMessage,
 };
 use crate::service;
 use crate::state::AppState;
@@ -83,7 +84,6 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
         tokio::spawn(async move {
             match dao::get_undelivered_messages(&pool, user_id, 200).await {
                 Ok(msgs) => {
-                    let msg_ids: Vec<i64> = msgs.iter().map(|m| m.msg_id).collect();
                     for msg in &msgs {
                         let push = PrivatePushMsg {
                             from_uid: msg.from_uid,
@@ -95,9 +95,6 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
                         if let Ok(json) = serde_json::to_string(&push) {
                             let _ = tx.send(Utf8Bytes::from(json));
                         }
-                    }
-                    if let Err(e) = dao::mark_messages_delivered(&pool, &msg_ids).await {
-                        tracing::error!("mark_messages_delivered failed: {e}");
                     }
                 }
                 Err(e) => tracing::error!("get_undelivered_messages failed: {e}"),
@@ -143,6 +140,34 @@ async fn handle_biz_msg(
     };
     match ws_msg.cmd.as_str() {
         "heartbeat" => {}
+        "mark_delivered" => {
+            let req: MarkDeliveredReq = match serde_json::from_value(ws_msg.data) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!("failed to parse mark_delivered request: {e}");
+                    return;
+                }
+            };
+            match dao::get_undelivered_ids_from_peer(&state.pg_pool, req.peer_uid, uid).await {
+                Ok(ids) if !ids.is_empty() => {
+                    if let Err(e) = dao::mark_messages_delivered(&state.pg_pool, &ids).await {
+                        tracing::error!("mark_messages_delivered failed: {e}");
+                    } else {
+                        let update = DeliveryUpdate {
+                            msg_ids: ids,
+                            to_uid: uid,
+                        };
+                        if let Ok(json) = serde_json::to_string(&update) {
+                            let payload =
+                                format!(r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#, json);
+                            state.send_to_user(req.peer_uid, Utf8Bytes::from(payload));
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => tracing::error!("get_undelivered_ids_from_peer failed: {e}"),
+            }
+        }
         "private_chat" => {
             let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
                 Ok(r) => r,
@@ -165,8 +190,27 @@ async fn handle_biz_msg(
                 .await
             {
                 Ok(msg_id) => {
-                    // ACK to sender
-                    let ack = PrivateChatAck { msg_id, send_time };
+                    // Push to recipient first to know delivery status
+                    let push = PrivatePushMsg {
+                        from_uid: uid,
+                        to_uid: req.to_uid,
+                        content: req.content.clone(),
+                        msg_type: req.msg_type,
+                        send_time,
+                    };
+                    let delivered = if let Ok(json) = serde_json::to_string(&push) {
+                        state.send_to_user(req.to_uid, Utf8Bytes::from(json))
+                    } else {
+                        tracing::error!("failed to serialize push msg to user={}", req.to_uid);
+                        false
+                    };
+
+                    // ACK to sender with delivery status
+                    let ack = PrivateChatAck {
+                        msg_id,
+                        send_time,
+                        delivered,
+                    };
                     if let Ok(json) = serde_json::to_string(&ack) {
                         let _ = tx.send(Utf8Bytes::from(format!(
                             r#"{{"cmd":"private_chat_ack","seq":{},"data":{}}}"#,
@@ -174,20 +218,6 @@ async fn handle_biz_msg(
                         )));
                     } else {
                         tracing::error!("failed to serialize ACK for msg_id={msg_id}");
-                    }
-
-                    // Push to recipient
-                    let push = PrivatePushMsg {
-                        from_uid: uid,
-                        to_uid: req.to_uid,
-                        content: req.content,
-                        msg_type: req.msg_type,
-                        send_time,
-                    };
-                    if let Ok(json) = serde_json::to_string(&push) {
-                        state.send_to_user(req.to_uid, Utf8Bytes::from(json));
-                    } else {
-                        tracing::error!("failed to serialize push msg to user={}", req.to_uid);
                     }
                 }
                 Err(e) => {

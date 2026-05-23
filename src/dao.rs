@@ -147,6 +147,26 @@ pub async fn mark_messages_delivered(pool: &PgPool, msg_ids: &[i64]) -> anyhow::
     Ok(())
 }
 
+pub async fn get_undelivered_ids_from_peer(
+    pool: &PgPool,
+    from_uid: Uuid,
+    to_uid: Uuid,
+) -> anyhow::Result<Vec<i64>> {
+    let rows = sqlx::query!(
+        "SELECT id FROM im_chat_messages WHERE from_uid = $1 AND to_uid = $2 AND delivered = FALSE ORDER BY id",
+        from_uid,
+        to_uid,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_undelivered_ids_from_peer failed: {e}");
+        e
+    })?;
+
+    Ok(rows.into_iter().map(|r| r.id).collect())
+}
+
 pub async fn get_conversations(pool: &PgPool, uid: Uuid) -> anyhow::Result<Vec<ConversationItem>> {
     let rows = sqlx::query_as!(
         ConversationItem,

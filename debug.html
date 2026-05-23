@@ -467,7 +467,8 @@
                         const sender = msg.from_uid === clients.A.uid ? 'A' : (msg.from_uid === clients.B.uid ? 'B' : msg.from_uid.substring(0, 8));
                         addLog(`📩 ${user} ${dir} ${sender}: ${msg.content} [msg_type=${msg.msg_type} time=${msg.send_time}]`, 'msg-in');
                     } else if (msg.cmd === 'private_chat_ack') {
-                        addLog(`✅ ${user} ACK: msg_id=${msg.data.msg_id} time=${msg.data.send_time}`, 'msg-ack');
+                        const d = msg.data.delivered ? '✓ delivered' : '◷ offline';
+                        addLog(`✅ ${user} ACK: msg_id=${msg.data.msg_id} time=${msg.data.send_time} ${d}`, 'msg-ack');
                     } else if (msg.cmd === 'error') {
                         addLog(`❌ ${user} ERROR: ${JSON.stringify(msg.data)}`, 'msg-err');
                     } else {
