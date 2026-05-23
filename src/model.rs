@@ -105,6 +105,13 @@ pub struct PrivatePushMsg {
     pub send_time: u64,
 }
 
+/// 私聊发送确认
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PrivateChatAck {
+    pub msg_id: i64,
+    pub send_time: u64,
+}
+
 /// 群聊上行
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupChatReq {
@@ -128,4 +135,56 @@ pub struct GroupPushMsg {
 pub struct ErrorReply {
     pub code: u16,
     pub msg: String,
+}
+
+/// 聊天历史查询参数
+#[derive(Debug, Deserialize)]
+pub struct HistoryQuery {
+    pub token: String,
+    pub peer_uid: Uuid,
+    pub before: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+/// 仅带 token 的通用查询参数
+#[derive(Debug, Deserialize)]
+pub struct TokenQuery {
+    pub token: String,
+}
+
+/// 聊天历史条目
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ChatHistoryItem {
+    pub msg_id: i64,
+    pub from_uid: Uuid,
+    pub to_uid: Uuid,
+    pub content: String,
+    pub msg_type: i16,
+    pub send_time: i64, // Unix timestamp in milliseconds
+}
+
+/// 会话列表项
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ConversationItem {
+    pub peer_uid: Uuid,
+    pub peer_name: String,
+    pub last_msg: String,
+    pub last_msg_type: i16,
+    pub last_time: i64,
+    pub last_msg_id: i64,
+}
+
+/// 用户搜索参数
+#[derive(Debug, Deserialize)]
+pub struct SearchQuery {
+    pub token: String,
+    pub q: String,
+    pub limit: Option<i64>,
+}
+
+/// 用户搜索结果
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct UserSearchItem {
+    pub id: Uuid,
+    pub username: String,
 }

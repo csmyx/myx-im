@@ -11,5 +11,6 @@ CREATE TABLE im_chat_messages (
     to_uid UUID NOT NULL,
     content TEXT NOT NULL,
     msg_type SMALLINT NOT NULL,
+    delivered BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

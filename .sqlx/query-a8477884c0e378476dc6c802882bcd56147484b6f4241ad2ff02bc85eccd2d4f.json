@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id AS msg_id,\n            from_uid,\n            to_uid,\n            content,\n            msg_type,\n            EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS \"send_time!\"\n        FROM im_chat_messages\n        WHERE ((from_uid = $1 AND to_uid = $2) OR (from_uid = $2 AND to_uid = $1))\n          AND id < COALESCE($3::bigint, 9223372036854775807)\n        ORDER BY id DESC\n        LIMIT $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "msg_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "from_uid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "to_uid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "msg_type",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "send_time!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "a8477884c0e378476dc6c802882bcd56147484b6f4241ad2ff02bc85eccd2d4f"
+}

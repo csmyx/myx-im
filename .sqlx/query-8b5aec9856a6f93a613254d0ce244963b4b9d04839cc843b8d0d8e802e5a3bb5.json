@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT ON (peer_uid)\n            peer_uid AS \"peer_uid!: Uuid\",\n            u.username AS peer_name,\n            m.content AS last_msg,\n            m.msg_type AS last_msg_type,\n            EXTRACT(EPOCH FROM m.created_at)::bigint * 1000 AS \"last_time!\",\n            m.id AS last_msg_id\n        FROM im_chat_messages m\n        CROSS JOIN LATERAL (\n            SELECT CASE WHEN m.from_uid = $1 THEN m.to_uid ELSE m.from_uid END AS peer_uid\n        ) peer\n        JOIN im_users u ON u.id = peer.peer_uid\n        WHERE m.from_uid = $1 OR m.to_uid = $1\n        ORDER BY peer_uid, m.id DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "peer_uid!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "peer_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_msg",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_msg_type",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_time!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_msg_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      false,
+      null,
+      false
+    ]
+  },
+  "hash": "8b5aec9856a6f93a613254d0ce244963b4b9d04839cc843b8d0d8e802e5a3bb5"
+}
