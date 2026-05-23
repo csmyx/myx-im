@@ -977,6 +977,33 @@
         const searchResults = $('searchResults');
         const loadMore = $('loadMore');
 
+        // ===== Delivery status persistence =====
+        function storageKey() { return me ? `mx_status_${me.uid}` : null; }
+
+        function saveMsgStatus(msgId, status) {
+            const key = storageKey();
+            if (!key || !msgId) return;
+            try {
+                const data = JSON.parse(localStorage.getItem(key) || '{}');
+                data[msgId] = status;
+                // Keep last 500 entries to avoid unbounded growth
+                const ids = Object.keys(data);
+                if (ids.length > 500) {
+                    ids.slice(0, ids.length - 500).forEach(k => delete data[k]);
+                }
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (_) { }
+        }
+
+        function getMsgStatus(msgId) {
+            const key = storageKey();
+            if (!key || !msgId) return null;
+            try {
+                const data = JSON.parse(localStorage.getItem(key) || '{}');
+                return data[msgId] || null;
+            } catch (_) { return null; }
+        }
+
         // ===== Auth =====
         function toggleTheme() {
             document.body.classList.toggle('light');
@@ -1118,6 +1145,7 @@
             if (msg.data && msg.data.msg_id) {
                 entry.msg.msg_id = msg.data.msg_id;
                 msgById[msg.data.msg_id] = entry.el;
+                saveMsgStatus(msg.data.msg_id, delivered ? 'delivered' : 'undelivered');
             }
             delete pendingMsgs[msg.seq];
         }
@@ -1131,6 +1159,7 @@
                 const status = el.querySelector('.msg-status');
                 if (status) {
                     status.innerHTML = '<span class="delivered">✓ Delivered</span>';
+                    saveMsgStatus(mid, 'delivered');
                 }
             }
         }
@@ -1163,6 +1192,10 @@
                 if (!status || !status.textContent.includes('Delivered')) continue;
                 // Update all delivered to Read (simplified: we don't have msg_id on DOM)
                 status.innerHTML = '<span class="delivered">✓ Read</span>';
+                // Persist read status (find msg_id from msgById reverse lookup)
+                for (const [mid, el] of Object.entries(msgById)) {
+                    if (el === el.parentElement) saveMsgStatus(Number(mid), 'read');
+                }
             }
         }
 
@@ -1448,12 +1481,21 @@
             const isMine = m.from_uid === me.uid;
             const name = isMine ? me.username : (peers[m.from_uid]?.username || m.from_uid.substring(0, 8));
             const time = new Date(Number(m.send_time)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            // Restore persisted delivery status for history messages
+            if (!status && isMine && m.msg_id) {
+                const saved = getMsgStatus(m.msg_id);
+                if (saved === 'delivered') status = '<span class="delivered">✓ Delivered</span>';
+                else if (saved === 'read') status = '<span class="delivered">✓ Read</span>';
+                else if (saved === 'undelivered') status = '<span class="undelivered">◷ Sent (offline)</span>';
+            }
             const div = document.createElement('div');
             div.className = 'msg-row' + (isMine ? ' mine' : '');
             div.innerHTML = `<div class="m-avatar">${name[0].toUpperCase()}</div>
         <div><div class="msg-bubble">${escHtml(m.content)}</div><div class="msg-time">${time}</div><div class="msg-status">${status || ''}</div></div>`;
             msgList.appendChild(div);
             msgList.scrollTop = msgList.scrollHeight;
+            // Register msg_id for late delivery updates
+            if (m.msg_id && isMine) msgById[m.msg_id] = div;
             return div;
         }
 
