@@ -45,6 +45,18 @@
             font: 14px/1.5 var(--font);
             background: var(--bg);
             color: var(--text);
+            transition: background .3s, color .3s;
+        }
+
+        body.light {
+            --bg: #f5f5f5;
+            --surface: #fff;
+            --surface2: #f0f0f0;
+            --border: #ddd;
+            --text: #222;
+            --text2: #666;
+            --primary: #007aff;
+            --primary-dim: #0056cc;
         }
 
         input,
@@ -65,7 +77,7 @@
         }
 
         ::-webkit-scrollbar {
-            width: 6px;
+            width: 8px;
         }
 
         ::-webkit-scrollbar-track {
@@ -73,12 +85,15 @@
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #555;
-            border-radius: 3px;
+            background: #666;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: content-box;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #888;
+            background: #999;
+            background-clip: content-box;
         }
 
         /* ===== Layout ===== */
@@ -101,12 +116,14 @@
             display: flex;
             flex-direction: column;
             min-width: 0;
+            min-height: 0;
         }
 
         #chatArea {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-height: 0;
         }
 
         #noChat {
@@ -128,6 +145,7 @@
         }
 
         .auth-box {
+            position: relative;
             width: 100%;
             max-width: 340px;
             background: var(--surface);
@@ -382,6 +400,21 @@
 
         .bottom-nav button.active {
             color: var(--primary);
+        }
+
+        .theme-toggle {
+            font-size: 18px;
+            padding: 4px 6px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            opacity: .5;
+            background: transparent;
+            border: none;
+            flex-shrink: 0;
+        }
+
+        .theme-toggle:hover {
+            opacity: 1;
         }
 
         @media (max-width: 700px) {
@@ -816,6 +849,7 @@
             <div class="auth-box">
                 <h1>myx-im</h1>
                 <div class="sub">Instant Messaging</div>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
                 <label for="authUser">Username</label>
                 <input id="authUser" placeholder="3-20 characters" maxlength="20" autocomplete="username">
                 <label for="authPass">Password</label>
@@ -837,6 +871,7 @@
                     <div class="name" id="myName"></div>
                     <div class="uid-text" id="myUid"></div>
                 </div>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
                 <button class="btn-logout" onclick="doLogout()">Logout</button>
             </div>
             <div class="search-wrap">
@@ -941,6 +976,14 @@
         const loadMore = $('loadMore');
 
         // ===== Auth =====
+        function toggleTheme() {
+            document.body.classList.toggle('light');
+            localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+        }
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+
         async function api(path, opts = {}) {
             const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
             return res.json();
@@ -1142,14 +1185,14 @@
         }
 
         function renderGroupList() {
-            convList.innerHTML = '<div style="padding:10px 14px;display:flex;gap:6px"><button class="btn-primary" style="flex:1;padding:6px;border-radius:4px;font-size:12px" onclick="openModal(\'create\')">+ Create Group</button><button class="btn-outline" style="flex:1;padding:6px;border-radius:4px;font-size:12px;border:1px solid var(--border)" onclick="openModal(\'join\')">Join Group</button></div>'
+            convList.innerHTML = `<div style="padding:10px 14px;display:flex;gap:6px"><button style="flex:1;padding:6px;border-radius:4px;font-size:12px;background:var(--primary);color:#fff;border:none;cursor:pointer" onclick="openModal('create')">+ Create Group</button><button style="flex:1;padding:6px;border-radius:4px;font-size:12px;border:1px solid var(--border);color:var(--text);background:transparent;cursor:pointer" onclick="openModal('join')">Join Group</button></div>`
                 + (groupCache.length === 0
-                ? '<div style="padding:30px;text-align:center;color:var(--text2);font-size:13px">No groups yet.</div>'
-                : groupCache.map(g => `
+                    ? `<div style="padding:30px;text-align:center;color:var(--text2);font-size:13px">No groups yet.</div>`
+                    : groupCache.map(g => `
                     <div class="conv-item${activeGroup === g.group_id ? ' active' : ''}" onclick="openGroupChat('${g.group_id}','${escHtml(g.name)}')">
                         <div class="c-avatar">👥</div>
                         <div class="c-info"><div class="c-name">${escHtml(g.name)}</div><div class="c-last">${g.member_count} members</div></div>
-                    </div>`).join('');
+                    </div>`).join(''));
         }
 
         function openGroupChat(groupId, groupName) {
