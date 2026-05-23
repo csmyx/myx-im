@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM im_chat_messages WHERE from_uid = $1 AND to_uid = $2 AND delivered = FALSE ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "41fd14fb2cc793209a70a852d12cb9df9febcb3f2206c896316ce1deba7ce2b0"
+}

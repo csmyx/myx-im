@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO im_read_cursors (user_id, peer_uid, last_read_msg_id)\n           VALUES ($1, $2, $3)\n           ON CONFLICT (user_id, peer_uid) DO UPDATE SET last_read_msg_id = GREATEST(im_read_cursors.last_read_msg_id, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e5fc1cc53d0f89c4bbd014e6774d3880700ffa1b9dc6398952cca5ccd86532fd"
+}

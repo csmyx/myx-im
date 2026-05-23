@@ -8,7 +8,45 @@ pub async fn save_message(
     to_uid: Uuid,
     content: &str,
     msg_type: u8,
+    client_msg_id: Option<&str>,
 ) -> anyhow::Result<i64> {
+    if let Some(cid) = client_msg_id {
+        let res = sqlx::query!(
+            r#"INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type, client_msg_id)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (client_msg_id) DO NOTHING
+               RETURNING id"#,
+            from_uid as Uuid,
+            to_uid as Uuid,
+            content,
+            msg_type as i16,
+            cid,
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("save_message failed: {e}");
+            e
+        })?;
+
+        if let Some(row) = res {
+            return Ok(row.id);
+        }
+        // Conflict — fetch existing
+        let existing = sqlx::query!(
+            "SELECT id FROM im_chat_messages WHERE client_msg_id = $1",
+            cid,
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("save_message dedup lookup failed: {e}");
+            e
+        })?;
+        tracing::info!("save_message dedup: reused id={}", existing.id);
+        return Ok(existing.id);
+    }
+
     let res = sqlx::query!(
         r#"INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type) VALUES ($1, $2, $3, $4) RETURNING id"#,
         from_uid as Uuid,
@@ -165,6 +203,29 @@ pub async fn get_undelivered_ids_from_peer(
     })?;
 
     Ok(rows.into_iter().map(|r| r.id).collect())
+}
+
+pub async fn upsert_read_cursor(
+    pool: &PgPool,
+    user_id: Uuid,
+    peer_uid: Uuid,
+    last_read_msg_id: i64,
+) -> anyhow::Result<()> {
+    sqlx::query!(
+        r#"INSERT INTO im_read_cursors (user_id, peer_uid, last_read_msg_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, peer_uid) DO UPDATE SET last_read_msg_id = GREATEST(im_read_cursors.last_read_msg_id, $3)"#,
+        user_id,
+        peer_uid,
+        last_read_msg_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("upsert_read_cursor failed: {e}");
+        e
+    })?;
+    Ok(())
 }
 
 pub async fn get_conversations(pool: &PgPool, uid: Uuid) -> anyhow::Result<Vec<ConversationItem>> {

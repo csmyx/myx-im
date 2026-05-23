@@ -16,18 +16,18 @@ pub struct User {
 // Register request body
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterRequest {
-    #[validate(length(min = 3, max = 20, message = "用户名长度 3-20 位"))]
+    #[validate(length(min = 3, max = 20, message = "Username length 3-20 characters"))]
     pub username: String,
-    #[validate(length(min = 6, max = 20, message = "密码长度 6-20 位"))]
+    #[validate(length(min = 6, max = 20, message = "Password length 6-20 characters"))]
     pub password: String,
 }
 
 // Login request body
 #[derive(Debug, Deserialize, Validate)]
 pub struct LoginRequest {
-    #[validate(length(min = 3, max = 20, message = "用户名长度 3-20 位"))]
+    #[validate(length(min = 3, max = 20, message = "Username length 3-20 characters"))]
     pub username: String,
-    #[validate(length(min = 6, max = 20, message = "密码长度 6-20 位"))]
+    #[validate(length(min = 6, max = 20, message = "Password length 6-20 characters"))]
     pub password: String,
 }
 
@@ -65,19 +65,6 @@ impl<T> Res<T> {
     }
 }
 
-// #[derive(Debug, Deserialize, Validate)]
-// pub struct RegisterDTO {
-//     #[validate(length(min = 3, max = 20, message = "用户名长度 3-20 位"))]
-//     pub username: String,
-
-//     #[validate(length(min = 6, max = 20, message = "密码长度 6-20 位"))]
-//     pub password: String,
-
-//     pub nickname: Option<String>,
-// }
-
-// use axum::extract::ws::Utf8Bytes;
-
 /// Top-level unified message
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WsMessage {
@@ -93,6 +80,7 @@ pub struct PrivateChatReq {
     pub content: String,
     pub msg_type: u8,
     pub extra: Option<String>,
+    pub client_msg_id: Option<String>,
 }
 
 /// Private chat downstream push
@@ -124,6 +112,13 @@ pub struct DeliveryUpdate {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MarkDeliveredReq {
     pub peer_uid: Uuid,
+}
+
+/// Notify sender that recipient has read up to a message
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReadReceipt {
+    pub peer_uid: Uuid,
+    pub last_read_msg_id: i64,
 }
 
 /// Group chat upstream

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type, client_msg_id)\n               VALUES ($1, $2, $3, $4, $5)\n               ON CONFLICT (client_msg_id) DO NOTHING\n               RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "405c9cbc4d740e8b52c8f143e1eb04d384ff019dbd7101a9f29ebdcea26c6f97"
+}

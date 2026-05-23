@@ -65,12 +65,20 @@
         }
 
         ::-webkit-scrollbar {
-            width: 4px;
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 2px;
+            background: #555;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #888;
         }
 
         /* ===== Layout ===== */
@@ -321,6 +329,7 @@
         .conv-list {
             flex: 1;
             overflow-y: auto;
+            min-height: 0;
         }
 
         .conv-item {
@@ -441,10 +450,12 @@
         .msg-list {
             flex: 1;
             overflow-y: auto;
+            min-height: 0;
             padding: 16px 18px;
             display: flex;
             flex-direction: column;
             gap: 6px;
+            scroll-behavior: smooth;
         }
 
         .msg-loading {
@@ -453,6 +464,7 @@
             color: var(--text2);
             font-size: 12px;
             cursor: pointer;
+            flex-shrink: 0;
         }
 
         .msg-loading:hover {
@@ -463,6 +475,7 @@
             display: flex;
             gap: 8px;
             max-width: 75%;
+            flex-shrink: 0;
         }
 
         .msg-row.mine {
@@ -525,6 +538,13 @@
 
         .msg-status .undelivered {
             color: #e5c07b;
+        }
+
+        .typing-indicator {
+            font-size: 11px;
+            color: var(--text2);
+            padding: 2px 18px;
+            font-style: italic;
         }
 
         /* ===== Input Bar ===== */
@@ -788,6 +808,7 @@
                 <div class="msg-list" id="msgList">
                     <div class="msg-loading" id="loadMore" onclick="loadHistory()">Load earlier messages</div>
                 </div>
+                <div class="typing-indicator" id="typingHint" style="display:none"></div>
                 <div class="input-bar">
                     <textarea id="msgInput" rows="1" placeholder="Type a message..."
                         onkeydown="onMsgKey(event)"></textarea>
@@ -808,6 +829,8 @@
         let unreadCounts = {};    // peer_uid → number of unread messages
         let pendingMsgs = {};     // seq → { el, msg } for delivery status updates
         let msgById = {};         // msg_id → DOM element for late delivery updates
+        let typingTimer = null;   // debounce for outgoing typing
+        let typingTimeout = null; // timeout to hide incoming typing indicator
 
         const PAGE_SIZE = 40;
 
@@ -894,6 +917,10 @@
                         handleAck(msg);
                     } else if (msg.cmd === 'delivery_update') {
                         handleDeliveryUpdate(msg);
+                    } else if (msg.cmd === 'typing') {
+                        handleTyping(msg);
+                    } else if (msg.cmd === 'read_receipt') {
+                        handleReadReceipt(msg);
                     }
                 } catch (_) { }
             };
@@ -955,6 +982,37 @@
             }
         }
 
+        function handleTyping(msg) {
+            const fromUid = msg.data && msg.data.from_uid;
+            if (!fromUid || activePeer !== fromUid) return;
+            const hint = $('typingHint');
+            const name = (peers[fromUid] && peers[fromUid].username) || fromUid.substring(0, 8);
+            hint.textContent = `${name} is typing...`;
+            hint.style.display = 'block';
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => { hint.style.display = 'none'; }, 3000);
+        }
+
+        function sendTyping() {
+            if (!activePeer || !ws || ws.readyState !== 1) return;
+            ws.send(JSON.stringify({ cmd: 'typing', seq: 0, data: { to_uid: activePeer } }));
+        }
+
+        function handleReadReceipt(msg) {
+            const peerUid = msg.data && msg.data.peer_uid;
+            const lastReadId = msg.data && msg.data.last_read_msg_id;
+            if (!peerUid || !lastReadId) return;
+            // Update all my delivered messages in this conversation to "Read"
+            const items = msgList.querySelectorAll('.msg-row.mine');
+            for (const el of items) {
+                // Find this message in messages array by DOM position
+                const status = el.querySelector('.msg-status');
+                if (!status || !status.textContent.includes('Delivered')) continue;
+                // Update all delivered to Read (simplified: we don't have msg_id on DOM)
+                status.innerHTML = '<span class="delivered">✓ Read</span>';
+            }
+        }
+
         // ===== Conversations =====
         async function loadConversations() {
             const d = await api(`/api/conversations?token=${encodeURIComponent(me.token)}`);
@@ -1009,6 +1067,8 @@
 
         function closeChat() {
             activePeer = null;
+            clearTimeout(typingTimeout);
+            $('typingHint').style.display = 'none';
             document.body.classList.remove('chat-open');
             main.classList.remove('chat-open');
             noChat.style.display = 'flex';
@@ -1063,17 +1123,21 @@
             const content = msgInput.value.trim();
             if (!content) return;
             const seq = Date.now();
+            const cid = crypto.randomUUID();
             const msg = { msg_id: seq, from_uid: me.uid, to_uid: activePeer, content, msg_type: 1, send_time: Date.now() };
             const el = appendMsg(msg, '<span class="pending">◷ Sending...</span>');
             pendingMsgs[seq] = { el, msg };
-            ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: activePeer, content, msg_type: 1 } }));
+            ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: activePeer, content, msg_type: 1, client_msg_id: cid } }));
             msgInput.value = '';
             msgInput.style.height = 'auto';
             msgInput.focus();
         }
 
         function onMsgKey(e) {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); return; }
+            // Debounced typing indicator
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(sendTyping, 500);
             // Auto-resize
             setTimeout(() => {
                 msgInput.style.height = 'auto';

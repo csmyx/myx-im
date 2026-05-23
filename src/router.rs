@@ -18,8 +18,8 @@ use crate::dao;
 use crate::jwt::verify_token;
 use crate::model::{
     ChatHistoryItem, ConversationItem, DeliveryUpdate, HistoryQuery, LoginRequest,
-    MarkDeliveredReq, PrivateChatAck, PrivateChatReq, PrivatePushMsg, RegisterRequest, Res,
-    SearchQuery, TokenQuery, UserSearchItem, WsMessage,
+    MarkDeliveredReq, PrivateChatAck, PrivateChatReq, PrivatePushMsg, ReadReceipt, RegisterRequest,
+    Res, SearchQuery, TokenQuery, UserSearchItem, WsMessage,
 };
 use crate::service;
 use crate::state::AppState;
@@ -140,6 +140,16 @@ async fn handle_biz_msg(
     };
     match ws_msg.cmd.as_str() {
         "heartbeat" => {}
+        "typing" => {
+            // Forward typing indicator to peer
+            if let Ok(req) = serde_json::from_value::<PrivateChatReq>(ws_msg.data) {
+                let payload = format!(
+                    r#"{{"cmd":"typing","seq":{},"data":{{"from_uid":"{}"}}}}"#,
+                    ws_msg.seq, uid,
+                );
+                state.send_to_user(req.to_uid, Utf8Bytes::from(payload));
+            }
+        }
         "mark_delivered" => {
             let req: MarkDeliveredReq = match serde_json::from_value(ws_msg.data) {
                 Ok(r) => r,
@@ -150,17 +160,35 @@ async fn handle_biz_msg(
             };
             match dao::get_undelivered_ids_from_peer(&state.pg_pool, req.peer_uid, uid).await {
                 Ok(ids) if !ids.is_empty() => {
+                    let max_id = *ids.last().unwrap();
                     if let Err(e) = dao::mark_messages_delivered(&state.pg_pool, &ids).await {
                         tracing::error!("mark_messages_delivered failed: {e}");
                     } else {
+                        // Notify sender: messages delivered
                         let update = DeliveryUpdate {
-                            msg_ids: ids,
+                            msg_ids: ids.clone(),
                             to_uid: uid,
                         };
                         if let Ok(json) = serde_json::to_string(&update) {
                             let payload =
                                 format!(r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#, json);
                             state.send_to_user(req.peer_uid, Utf8Bytes::from(payload));
+                        }
+                        // Update read cursor & send read receipt
+                        if let Err(e) =
+                            dao::upsert_read_cursor(&state.pg_pool, uid, req.peer_uid, max_id).await
+                        {
+                            tracing::error!("upsert_read_cursor failed: {e}");
+                        } else {
+                            let receipt = ReadReceipt {
+                                peer_uid: uid,
+                                last_read_msg_id: max_id,
+                            };
+                            if let Ok(json) = serde_json::to_string(&receipt) {
+                                let payload =
+                                    format!(r#"{{"cmd":"read_receipt","seq":0,"data":{}}}"#, json);
+                                state.send_to_user(req.peer_uid, Utf8Bytes::from(payload));
+                            }
                         }
                     }
                 }
@@ -186,8 +214,15 @@ async fn handle_biz_msg(
                 .unwrap_or_default()
                 .as_millis() as u64;
 
-            match dao::save_message(&state.pg_pool, uid, req.to_uid, &req.content, req.msg_type)
-                .await
+            match dao::save_message(
+                &state.pg_pool,
+                uid,
+                req.to_uid,
+                &req.content,
+                req.msg_type,
+                req.client_msg_id.as_deref(),
+            )
+            .await
             {
                 Ok(msg_id) => {
                     // Push to recipient first to know delivery status

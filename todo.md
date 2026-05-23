@@ -42,28 +42,61 @@
 - [x] DAO 新增 `search_users`（ILIKE 模糊搜索）
   - 按用户名模糊搜索，排除自己
   - 返回 `{ user_id, username }` 列表
-- [ ] DAO 新增 `search_users(pool, keyword, limit)` 方法
+
+### 12. 送达状态追踪 ✅
+
+- [x] `send_to_user` 返回 `bool`（是否在线送达）
+- [x] `PrivateChatAck.delivered` 告知发送方对方是否在线
+- [x] `mark_delivered` WS 命令：接收方点开对话后标记已送达
+- [x] `delivery_update` 推送：通知发送方消息已送达
+- [x] 会话列表未读 badge（红色数字角标）
+- [x] 消息气泡显示 ✓ Delivered / ◷ Sent (offline) / ◷ Sending...
+- [x] 离线消息同步不再自动标记 delivered，改为用户点开对话后触发
 
 ---
 
 ## 🟢 低优先级
 
-### 7. 消息已读回执
+### 7. 消息已读回执 ✅
 
-- [ ] 新增表 `im_read_cursors(user_id UUID, peer_uid UUID, last_read_msg_id BIGINT, UNIQUE(user_id, peer_uid))`
-- [ ] WS 命令 `mark_read`：客户端上报已读位置
-- [ ] WS 推送 `read_receipt`：对方已读时通知发送方
+- [x] 新增表 `im_read_cursors(user_id, peer_uid, last_read_msg_id)`
+- [x] DAO `upsert_read_cursor` 写入/更新已读位置
+- [x] `mark_delivered` 时同步更新 read cursor
+- [x] WS 推送 `read_receipt` 通知发送方对方已读
+- [x] 客户端显示 ✓ Read
 
-### 8. 消息去重（幂等）
+### 8. 消息去重（幂等） ✅
 
-- [ ] `PrivateChatReq` 增加 `client_msg_id` 字段
-- [ ] `im_chat_messages` 增加 `client_msg_id` 列 + 唯一索引
-- [ ] DAO 写入前检查重复
+- [x] `PrivateChatReq` 增加 `client_msg_id: Option<String>` 字段
+- [x] `im_chat_messages` 增加 `client_msg_id TEXT UNIQUE` 列
+- [x] DAO `save_message` 用 `ON CONFLICT DO NOTHING` + 回查去重
 
-### 9. 正在输入状态
+### 9. 正在输入状态 ✅
 
-- [ ] WS 命令透传 `{cmd: "typing", data: {to_uid: ...}}`
-  - 不需要持久化，纯透传
+- [x] WS 命令透传 `{cmd: "typing", data: {to_uid: ...}}`
+- [x] 服务端纯转发
+- [x] 客户端 debounce 500ms 发送，接收端 3 秒超时隐藏
+
+---
+
+## 🔵 额外完成
+
+### 12. 送达状态追踪 ✅
+
+- [x] `send_to_user` 返回 `bool`（是否在线送达）
+- [x] `PrivateChatAck.delivered` 告知发送方对方是否在线
+- [x] `mark_delivered` WS 命令：接收方点开对话后标记已送达
+- [x] `delivery_update` 推送：通知发送方消息已送达
+- [x] 会话列表未读 badge（红色数字角标）
+- [x] 消息气泡显示 ✓ Delivered / ◷ Sent (offline) / ◷ Sending...
+
+### 13. Tracing 日志 ✅
+
+- [x] `dao.rs` 全部 8 个函数 error 日志
+- [x] `jwt.rs` JWT 签发/验证日志
+- [x] `service.rs` 注册/登录/登出全链路日志
+- [x] `router.rs` WS 连接/断开/未知命令/序列化失败日志
+- [x] `doc/logging.md` 日志参考文档
 
 ### 10. 错误处理完善 ✅
 
