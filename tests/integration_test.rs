@@ -13,6 +13,7 @@ use tokio::net::TcpListener;
 
 /// Spawn the server on an ephemeral port, return the bound address.
 async fn spawn_server(pool: sqlx::PgPool) -> (tokio::task::JoinHandle<()>, String) {
+    let _ = tracing_subscriber::fmt::try_init();
     let state = init_app_state(pool);
     let app = app_router(Arc::new(state));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -195,4 +196,113 @@ fn base64_decode(input: &str) -> String {
     let engine = base64::engine::general_purpose::STANDARD;
     let bytes = engine.decode(input).unwrap();
     String::from_utf8(bytes).unwrap()
+}
+
+/// Regression: messages to a disconnected peer must NOT be marked delivered.
+///
+/// Bug: when a peer disconnected, the forwarding task's rx stayed alive because
+/// OnlineUser's tx kept the mpsc channel open.  The first send_to_user() succeeded
+/// at the mpsc level (returning delivered=true), but the message never reached
+/// the dead WS client.  Fixed by adding an Arc<AtomicBool> alive flag that
+/// send_to_user() checks before returning true.
+///
+/// Steps:
+///   1. Alice and Bob register, login, connect via WS
+///   2. Bob disconnects (ws.close), wait for cleanup
+///   3. Alice sends first private_chat to Bob → assert delivered=false
+///   4. Alice sends second private_chat to Bob → assert delivered=false
+#[tokio::test]
+async fn test_message_undelivered_when_peer_disconnects() {
+    dotenv::dotenv().ok();
+
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+
+    // ---- Start server ----
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // ---- Register two users ----
+    let alice = serde_json::json!({"username": "test_alice_undlv", "password": "alice123"});
+    let bob = serde_json::json!({"username": "test_bob_undlv", "password": "bob123"});
+
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &alice).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register alice: {r}");
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &bob).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register bob: {r}");
+
+    // ---- Login ----
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &alice).await;
+    assert_eq!(r["code"], 200, "alice login: {r}");
+    let alice_token = r["data"].as_str().unwrap().to_string();
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &bob).await;
+    assert_eq!(r["code"], 200, "bob login: {r}");
+    let bob_token = r["data"].as_str().unwrap().to_string();
+
+    // Extract Bob's uid from JWT
+    let bob_uid: String = {
+        let payload = bob_token.split('.').nth(1).unwrap();
+        let decoded = base64_decode(payload);
+        let claims: serde_json::Value = serde_json::from_str(&decoded).unwrap();
+        claims["user_id"].as_str().unwrap().to_string()
+    };
+
+    // ---- Both connect via WS, then Bob disconnects ----
+    let mut alice_ws = ws_connect(&addr, &alice_token).await;
+    let mut bob_ws = ws_connect(&addr, &bob_token).await;
+
+    // Explicitly close Bob's WS (simulate browser close / logout)
+    bob_ws.close(None).await.unwrap();
+    // Give the server time to detect the disconnect and set alive=false
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // ---- Alice sends first message to disconnected Bob ----
+    // This is the regression: previously this would return delivered=true
+    let chat_msg = serde_json::json!({
+        "cmd": "private_chat",
+        "seq": 1,
+        "data": {
+            "to_uid": bob_uid,
+            "content": "first message to offline peer",
+            "msg_type": 1
+        }
+    });
+    let ack = ws_send_recv(&mut alice_ws, &chat_msg.to_string()).await;
+    let ack_val: serde_json::Value = serde_json::from_str(&ack).unwrap();
+    assert_eq!(ack_val["cmd"], "private_chat_ack", "expected ACK, got: {ack}");
+    assert!(
+        ack_val["data"]["delivered"] == false,
+        "first message to disconnected peer should NOT be delivered, got: {ack}"
+    );
+
+    // ---- Alice sends second message ----
+    // Subsequent messages should also not be delivered
+    let chat_msg2 = serde_json::json!({
+        "cmd": "private_chat",
+        "seq": 2,
+        "data": {
+            "to_uid": bob_uid,
+            "content": "second message to offline peer",
+            "msg_type": 1
+        }
+    });
+    let ack2 = ws_send_recv(&mut alice_ws, &chat_msg2.to_string()).await;
+    let ack_val2: serde_json::Value = serde_json::from_str(&ack2).unwrap();
+    assert_eq!(ack_val2["cmd"], "private_chat_ack", "expected ACK, got: {ack2}");
+    assert!(
+        ack_val2["data"]["delivered"] == false,
+        "second message to disconnected peer should NOT be delivered, got: {ack2}"
+    );
+
+    // ---- Cleanup ----
+    alice_ws.close(None).await.unwrap();
+    server_handle.abort();
 }

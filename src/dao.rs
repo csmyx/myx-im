@@ -79,7 +79,8 @@ pub async fn save_user(
     .fetch_one(pool)
     .await
     .map_err(|e| {
-        tracing::error!("save_user failed: {e}");
+        // Duplicate key is an expected case handled by the service layer (409).
+        tracing::warn!("save_user failed: {e}");
         e
     })?;
 

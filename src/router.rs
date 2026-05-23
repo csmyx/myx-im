@@ -10,6 +10,7 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -83,7 +84,8 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
 
     let (mut sender, mut receiver) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    state.insert_online_user(user_id, tx.clone());
+    let alive = Arc::new(AtomicBool::new(true));
+    state.insert_online_user(user_id, tx.clone(), alive.clone());
 
     // Sync undelivered messages on connect
     {
@@ -114,15 +116,18 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
     }
 
     // Spawn a task that forwards messages from the mpsc channel to the WS sender.
-    // When the WS write side dies (client disconnects), we break the loop,
-    // which drops `rx`. This causes future `tx.send()` calls in send_to_user()
-    // to fail, triggering lazy cleanup of this user's entry from the online map.
+    // When the WS write side dies (client disconnects), we break the loop.
+    // The `alive` flag is set to false so that send_to_user() can immediately
+    // detect the dead connection without waiting for mpsc send to fail.
+    let alive_fwd = alive.clone();
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             if sender.send(Message::Text(msg)).await.is_err() {
                 break;
             }
         }
+        alive_fwd.store(false, Ordering::Release);
+        tracing::debug!("forwarding task exited for user={user_id}");
     });
 
     while let Some(Ok(msg)) = receiver.next().await {
@@ -134,6 +139,12 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
             _ => {}
         }
     }
+
+    // Mark this connection as dead. If we were kicked by a duplicate login,
+    // the new connection already replaced our entry in the map, so this is
+    // a no-op for the new connection's entry. The forwarding task also sets
+    // alive=false on exit, so this is defense-in-depth.
+    alive.store(false, Ordering::Release);
 
     // NOTE: We intentionally do NOT call state.remove_online_user(user_id) here.
     // If this connection was kicked by a duplicate login, remove_online_user would

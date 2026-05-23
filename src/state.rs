@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::Utf8Bytes;
@@ -18,27 +19,34 @@ pub struct AppState {
 #[derive(Debug, Clone)]
 struct OnlineUser {
     tx: mpsc::UnboundedSender<Utf8Bytes>,
+    alive: Arc<AtomicBool>,
 }
 
 impl AppState {
-    pub fn insert_online_user(&self, uid: Uuid, tx: mpsc::UnboundedSender<Utf8Bytes>) {
+    pub fn insert_online_user(
+        &self,
+        uid: Uuid,
+        tx: mpsc::UnboundedSender<Utf8Bytes>,
+        alive: Arc<AtomicBool>,
+    ) {
         let mut mp = self.online_users.lock().unwrap();
         if let Some(old) = mp.remove(&uid) {
             let _ = old.tx.send(Utf8Bytes::from_static(
                 r#"{"cmd":"kicked","seq":0,"data":{"msg":"logged in elsewhere"}}"#,
             ));
         }
-        mp.insert(uid, OnlineUser { tx });
+        mp.insert(uid, OnlineUser { tx, alive });
     }
 
     /// Try to deliver a message to an online user. Returns true if delivered.
     ///
     /// # Lazy dead-entry cleanup
     /// If the forwarding task in handle_im_websocket has exited (WS write side
-    /// dead), its `rx` was dropped, causing `sender.send(msg)` to fail. We
-    /// catch this and remove the stale entry. This is the ONLY cleanup mechanism
-    /// for non-explicit disconnects (browser close, network drop) and kicked
-    /// connections (duplicate login).
+    /// dead), its `alive` flag was set to false and its `rx` was dropped.
+    /// We catch this via the alive flag AND via send failure, then remove
+    /// the stale entry. This is the ONLY cleanup mechanism for non-explicit
+    /// disconnects (browser close, network drop) and kicked connections
+    /// (duplicate login).
     pub fn send_to_user(&self, uid: Uuid, msg: Utf8Bytes) -> bool {
         let Ok(mut mp) = self.online_users.lock() else {
             return false;
@@ -47,8 +55,15 @@ impl AppState {
             tracing::debug!("user {uid} offline, message dropped");
             return false;
         };
+        // Lazy dead-entry cleanup: forwarding task exited → remove.
+        if !sender.alive.load(Ordering::Acquire) {
+            mp.remove(&uid);
+            tracing::debug!("user {uid} dead entry cleaned up (alive=false)");
+            return false;
+        }
         // Lazy dead-entry cleanup: receiver dropped → remove.
         if let Err(e) = sender.send(msg) {
+            sender.alive.store(false, Ordering::Release);
             mp.remove(&uid);
             tracing::debug!("user {uid} disconnected, cleaned up: {e}");
             return false;
