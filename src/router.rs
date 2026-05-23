@@ -33,6 +33,7 @@ pub fn app_router(state: Arc<AppState>) -> Router {
         .route("/api/message/history", get(message_history_handler))
         .route("/api/conversations", get(conversations_handler))
         .route("/api/user/search", get(user_search_handler))
+        .route("/debug", get(debug_handler))
         .with_state(state)
 }
 
@@ -40,6 +41,10 @@ pub fn app_router(state: Arc<AppState>) -> Router {
 
 async fn index_handler() -> Html<&'static str> {
     Html(std::include_str!("../chat.html"))
+}
+
+async fn debug_handler() -> Html<&'static str> {
+    Html(std::include_str!("../debug.html"))
 }
 
 // ==================== WebSocket ====================

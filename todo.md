@@ -65,7 +65,20 @@
 - [ ] WS 命令透传 `{cmd: "typing", data: {to_uid: ...}}`
   - 不需要持久化，纯透传
 
-### 10. 错误处理完善
+### 10. 错误处理完善 ✅
 
-- [ ] `handle_biz_msg` 中 `save_message` 的错误不再被 `let _` 吞掉
+- [x] `handle_biz_msg` 中 `save_message` 的错误不再被 `let _` 吞掉
   - 失败时通过 `tx` 回复 `{cmd: "error", seq: <seq>, data: {code: 500, msg: "save failed"}}`
+
+### 11. 真实聊天 UI ✅
+
+- [x] `chat.html` — 真实用户聊天界面（`GET /`）
+  - 登录/注册独立界面
+  - 左侧会话列表 + 右侧聊天区域（桌面），移动端全屏切换
+  - 用户搜索、开始新对话
+  - 气泡式消息展示，区分自己和对方
+  - 历史消息游标分页加载（"Load earlier messages"）
+  - WebSocket 实时推送自动追加
+  - 移动端响应式布局（≤700px 切换全屏模式 + 返回按钮）
+  - CSS 变量集中管理主题色，方便换肤和后续扩展
+- [x] `debug.html` — 调试面板移至 `GET /debug`

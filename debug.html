@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>myx-im test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        body {
+            font: 12px monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 6px;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .panel {
+            flex: 1;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 6px 8px;
+            background: #252526;
+        }
+
+        .panel h2 {
+            font-size: 12px;
+            color: #569cd6;
+            margin-bottom: 4px;
+        }
+
+        .panel input {
+            width: 100%;
+            padding: 3px 6px;
+            margin: 1px 0;
+            border: 1px solid #3c3c3c;
+            border-radius: 2px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font: 11px monospace;
+        }
+
+        .panel input:focus {
+            outline: none;
+            border-color: #569cd6;
+        }
+
+        .panel button {
+            padding: 3px 10px;
+            margin: 3px 2px 0 0;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font: 11px monospace;
+            font-weight: bold;
+        }
+
+        .btn-go {
+            background: #0e639c;
+            color: #fff;
+        }
+
+        .btn-go:hover {
+            background: #1177bb;
+        }
+
+        .btn-test {
+            background: #5a3d1d;
+            color: #e5c07b;
+        }
+
+        .btn-test:hover {
+            background: #7a5d3d;
+        }
+
+        .status {
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 2px;
+        }
+
+        .off {
+            background: #5a1d1d;
+            color: #f44747;
+        }
+
+        .on {
+            background: #1d5a1d;
+            color: #4ec94e;
+        }
+
+        .uid {
+            font-size: 9px;
+            color: #888;
+            margin-top: 2px;
+            word-break: break-all;
+        }
+
+        .bar {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .bar input {
+            flex: 1;
+            min-width: 120px;
+            padding: 4px 8px;
+            border: 1px solid #3c3c3c;
+            border-radius: 3px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font: 12px monospace;
+        }
+
+        .bar input:focus {
+            outline: none;
+            border-color: #569cd6;
+        }
+
+        .bar button {
+            padding: 4px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font: 11px monospace;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .bar .btn-send {
+            background: #0e639c;
+            color: #fff;
+        }
+
+        .bar .btn-send:hover {
+            background: #1177bb;
+        }
+
+        .api-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .api-row input {
+            width: 100px;
+            padding: 3px 6px;
+            border: 1px solid #3c3c3c;
+            border-radius: 2px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font: 11px monospace;
+        }
+
+        .api-row input:focus {
+            outline: none;
+            border-color: #e5c07b;
+        }
+
+        .api-row button {
+            padding: 3px 8px;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font: 10px monospace;
+            font-weight: bold;
+            background: #3c3c3c;
+            color: #d4d4d4;
+        }
+
+        .api-row button:hover {
+            background: #555;
+        }
+
+        .api-row .sep {
+            color: #555;
+            margin: 0 2px;
+        }
+
+        #log {
+            flex: 1;
+            overflow-y: auto;
+            background: #1e1e1e;
+            padding: 4px 8px;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            line-height: 1.5;
+            min-height: 0;
+            -webkit-overflow-scrolling: touch;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .msg-out {
+            color: #569cd6;
+        }
+
+        .msg-in {
+            color: #ce9178;
+        }
+
+        .msg-ack {
+            color: #6a9955;
+        }
+
+        .msg-sys {
+            color: #6a9955;
+        }
+
+        .msg-api {
+            color: #dcdcaa;
+        }
+
+        .msg-err {
+            color: #f44747;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                font-size: 13px;
+                padding: 4px;
+                gap: 4px;
+            }
+
+            .row {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .panel {
+                padding: 8px 10px;
+            }
+
+            .panel h2 {
+                font-size: 13px;
+                margin-bottom: 6px;
+            }
+
+            .panel input {
+                padding: 8px 8px;
+                font-size: 15px;
+                margin: 2px 0;
+            }
+
+            .panel button {
+                padding: 8px 14px;
+                font-size: 13px;
+                margin: 4px 4px 0 0;
+            }
+
+            .status {
+                font-size: 11px;
+                padding: 2px 6px;
+            }
+
+            .bar {
+                gap: 4px;
+            }
+
+            .bar input {
+                padding: 8px 8px;
+                font-size: 15px;
+            }
+
+            .bar button {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+
+            #log {
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="row">
+        <div class="panel">
+            <h2>User A</h2>
+            <input type="text" id="userA" placeholder="username" value="alice">
+            <input type="password" id="passA" placeholder="password" value="alice123">
+            <button class="btn-go" onclick="register('A')">Register</button>
+            <button class="btn-go" onclick="login('A')">Login & Connect</button>
+            <span class="status off" id="statusA">offline</span>
+            <div class="uid" id="uidA"></div>
+        </div>
+        <div class="panel">
+            <h2>User B</h2>
+            <input type="text" id="userB" placeholder="username" value="bob">
+            <input type="password" id="passB" placeholder="password" value="bob123">
+            <button class="btn-go" onclick="register('B')">Register</button>
+            <button class="btn-go" onclick="login('B')">Login & Connect</button>
+            <span class="status off" id="statusB">offline</span>
+            <div class="uid" id="uidB"></div>
+        </div>
+    </div>
+
+    <div class="bar">
+        <input type="text" id="chatInput" placeholder="Message (Enter = A→B)" autocomplete="off">
+        <button class="btn-send" onclick="sendChat()">A→B</button>
+        <button class="btn-send" onclick="sendChatB()">B→A</button>
+    </div>
+
+    <div class="api-row">
+        <button onclick="apiHistory()" title="GET /api/message/history">📜 History</button>
+        <button onclick="apiConversations('A')" title="GET /api/conversations">💬 Convs A</button>
+        <button onclick="apiConversations('B')" title="GET /api/conversations">💬 Convs B</button>
+        <span class="sep">|</span>
+        <input type="text" id="searchQ" placeholder="search user" style="width:100px">
+        <button onclick="apiSearch()">🔍 Search</button>
+        <span class="sep">|</span>
+        <input type="text" id="historyLimit" placeholder="limit" value="20" style="width:50px">
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        const clients = {
+            A: { ws: null, uid: null, token: null },
+            B: { ws: null, uid: null, token: null }
+        };
+        const log = document.getElementById('log');
+
+        function uidEl(user) { return document.getElementById('uid' + user); }
+
+        function status(user, text, on) {
+            const el = document.getElementById('status' + user);
+            el.textContent = text;
+            el.className = 'status ' + (on ? 'on' : 'off');
+        }
+
+        function sys(msg) { addLog(msg, 'msg-sys'); }
+
+        function addLog(text, cls) {
+            const div = document.createElement('div');
+            div.className = cls || '';
+            const time = new Date().toLocaleTimeString();
+            div.textContent = `[${time}] ${text}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function apiCall(user, label, url) {
+            sys(`▶ ${label}: GET ${url}`);
+            fetch(url)
+                .then(r => r.json())
+                .then(d => {
+                    const json = JSON.stringify(d, null, 2);
+                    addLog(`◀ ${label} (${d.code}):\n${json}`, 'msg-api');
+                })
+                .catch(e => addLog(`◀ ${label} ERROR: ${e}`, 'msg-err'));
+        }
+
+        // ---- API test helpers ----
+
+        function apiHistory() {
+            const peer = clients.A.uid || clients.B.uid ? (clients.A.uid ? 'B' : 'A') : null;
+            const user = clients.A.token ? 'A' : (clients.B.token ? 'B' : null);
+            if (!user) { sys('❌ No one logged in'); return; }
+            const peerUid = clients[user === 'A' ? 'B' : 'A'].uid;
+            if (!peerUid) { sys('❌ Peer not logged in'); return; }
+            const limit = document.getElementById('historyLimit').value || '20';
+            const url = `/api/message/history?token=${encodeURIComponent(clients[user].token)}&peer_uid=${peerUid}&limit=${limit}`;
+            apiCall(user, 'History', url);
+        }
+
+        function apiConversations(user) {
+            if (!clients[user].token) { sys(`❌ User ${user} not logged in`); return; }
+            const url = `/api/conversations?token=${encodeURIComponent(clients[user].token)}`;
+            apiCall(user, `Convs ${user}`, url);
+        }
+
+        function apiSearch() {
+            const q = document.getElementById('searchQ').value.trim();
+            if (!q) { sys('❌ Enter search keyword'); return; }
+            const user = clients.A.token ? 'A' : (clients.B.token ? 'B' : null);
+            if (!user) { sys('❌ No one logged in'); return; }
+            const url = `/api/user/search?token=${encodeURIComponent(clients[user].token)}&q=${encodeURIComponent(q)}`;
+            apiCall(user, 'Search', url);
+        }
+
+        // ---- Auth ----
+
+        async function register(user) {
+            const u = document.getElementById('user' + user).value.trim();
+            const p = document.getElementById('pass' + user).value;
+            if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
+            sys(user + ' registering...');
+            const r = await fetch('/api/user/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const d = await r.json();
+            sys(d.code === 200 ? '✅ ' + user + ' registered' : '⚠️ ' + d.msg);
+        }
+
+        async function login(user) {
+            const u = document.getElementById('user' + user).value.trim();
+            const p = document.getElementById('pass' + user).value;
+            if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
+            sys(user + ' logging in...');
+            const r = await fetch('/api/user/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const d = await r.json();
+            if (d.code !== 200) { sys('❌ ' + user + ' login: ' + d.msg); return; }
+            const token = d.data;
+            let uid;
+            try { uid = JSON.parse(atob(token.split('.')[1])).user_id; } catch (_) { }
+            clients[user].token = token;
+            clients[user].uid = uid;
+            uidEl(user).textContent = 'uid: ' + uid;
+            sys('✅ ' + user + ' logged in uid=' + uid);
+            connectWS(user);
+        }
+
+        // ---- WebSocket ----
+
+        function connectWS(user) {
+            const c = clients[user];
+            if (!c.token) return;
+            if (c.ws) c.ws.close();
+            const ws = new WebSocket(`ws://${location.host}/im/ws?token=${encodeURIComponent(c.token)}`);
+            ws.onopen = () => {
+                c.ws = ws;
+                status(user, 'connected', true);
+                sys('🔗 ' + user + ' connected');
+            };
+            ws.onclose = () => {
+                c.ws = null;
+                status(user, 'offline', false);
+                sys('🔌 ' + user + ' disconnected');
+            };
+            ws.onmessage = (e) => {
+                try {
+                    const msg = JSON.parse(e.data);
+                    // Detect push message (has from_uid/to_uid/content fields, no cmd)
+                    if (msg.from_uid && msg.to_uid && msg.content !== undefined && !msg.cmd) {
+                        const dir = msg.to_uid === clients[user].uid ? '←' : '→';
+                        const sender = msg.from_uid === clients.A.uid ? 'A' : (msg.from_uid === clients.B.uid ? 'B' : msg.from_uid.substring(0, 8));
+                        addLog(`📩 ${user} ${dir} ${sender}: ${msg.content} [msg_type=${msg.msg_type} time=${msg.send_time}]`, 'msg-in');
+                    } else if (msg.cmd === 'private_chat_ack') {
+                        addLog(`✅ ${user} ACK: msg_id=${msg.data.msg_id} time=${msg.data.send_time}`, 'msg-ack');
+                    } else if (msg.cmd === 'error') {
+                        addLog(`❌ ${user} ERROR: ${JSON.stringify(msg.data)}`, 'msg-err');
+                    } else {
+                        addLog(`📩 ${user}: ${JSON.stringify(msg)}`, 'msg-in');
+                    }
+                } catch (_) {
+                    addLog('📩 ' + user + ': ' + e.data, 'msg-in');
+                }
+            };
+        }
+
+        function sendRaw(user, toUid) {
+            const c = clients[user];
+            if (!c.ws || c.ws.readyState !== 1) { sys('❌ ' + user + ' not connected'); return; }
+            const inp = document.getElementById('chatInput');
+            const content = inp.value.trim();
+            if (!content) return;
+            const seq = Date.now();
+            c.ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: toUid, content, msg_type: 1 } }));
+            const toLabel = toUid === clients.A.uid ? 'A' : (toUid === clients.B.uid ? 'B' : toUid.substring(0, 8));
+            addLog(`📤 ${user} → ${toLabel}: ${content} [seq=${seq}]`, 'msg-out');
+            inp.value = '';
+            inp.focus();
+        }
+
+        function sendChat() {
+            if (!clients.B.uid) { sys('❌ User B not logged in'); return; }
+            sendRaw('A', clients.B.uid);
+        }
+
+        function sendChatB() {
+            if (!clients.A.uid) { sys('❌ User A not logged in'); return; }
+            sendRaw('B', clients.A.uid);
+        }
+
+        document.getElementById('chatInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') sendChat();
+        });
+        document.getElementById('searchQ').addEventListener('keydown', e => {
+            if (e.key === 'Enter') apiSearch();
+        });
+
+        sys('💡 1. Register both → 2. Login & Connect each → 3. Chat → 4. Test APIs below');
+    </script>
+</body>
+
+</html>
