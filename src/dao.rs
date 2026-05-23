@@ -520,3 +520,75 @@ pub async fn search_users(
 
     Ok(rows)
 }
+
+/// Delete a user and all associated data (messages, groups, memberships, cursors).
+pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> anyhow::Result<()> {
+    // 1. Delete user's private chat messages
+    sqlx::query!(
+        "DELETE FROM im_chat_messages WHERE from_uid = $1 OR to_uid = $1",
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("delete_user: chat messages failed: {e}");
+        e
+    })?;
+
+    // 2. Find groups owned by this user
+    let owned_groups: Vec<Uuid> =
+        sqlx::query!("SELECT id FROM im_groups WHERE owner_uid = $1", user_id,)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("delete_user: find owned groups failed: {e}");
+                e
+            })?
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+
+    // 3. Delete owned groups (cascade deletes group messages + members)
+    for gid in &owned_groups {
+        sqlx::query!("DELETE FROM im_groups WHERE id = $1", gid)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("delete_user: delete group {gid} failed: {e}");
+                e
+            })?;
+    }
+
+    // 4. Delete user's group messages in groups they don't own
+    sqlx::query!("DELETE FROM im_group_messages WHERE from_uid = $1", user_id,)
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("delete_user: group messages failed: {e}");
+            e
+        })?;
+
+    // 5. Delete read cursors
+    sqlx::query!(
+        "DELETE FROM im_read_cursors WHERE user_id = $1 OR peer_uid = $1",
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("delete_user: read cursors failed: {e}");
+        e
+    })?;
+
+    // 6. Delete user (cascade deletes group_members via ON DELETE CASCADE)
+    sqlx::query!("DELETE FROM im_users WHERE id = $1", user_id)
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("delete_user: user record failed: {e}");
+            e
+        })?;
+
+    tracing::info!("user {user_id} and all associated data deleted");
+    Ok(())
+}

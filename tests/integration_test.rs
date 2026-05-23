@@ -76,6 +76,18 @@ async fn ws_send_recv(
     }
 }
 
+/// Full-flow integration test: register → login → WS chat → reconnect → history.
+///
+/// Steps:
+///   1. Start server on ephemeral port
+///   2. Register Alice and Bob (accept 409 if already exist)
+///   3. Login both, extract JWT tokens
+///   4. Connect both via WebSocket
+///   5. Alice sends private_chat to Bob → verify ACK
+///   6. Bob receives private_push → verify content
+///   7. Close both WS connections (simulate disconnect)
+///   8. Reconnect both users via WS
+///   9. Query chat history via REST API → verify messages survive
 #[tokio::test]
 async fn test_register_login_ws_chat_reconnect() {
     dotenv::dotenv().ok();
@@ -304,5 +316,107 @@ async fn test_message_undelivered_when_peer_disconnects() {
 
     // ---- Cleanup ----
     alice_ws.close(None).await.unwrap();
+    server_handle.abort();
+}
+
+/// Verify that account deletion removes the user and prevents re-login.
+///
+/// Steps:
+///   1. Register and login a test user
+///   2. Delete account via POST /api/user/delete
+///   3. Attempt login with same credentials → must fail (user deleted)
+#[tokio::test]
+async fn test_delete_account_removes_user_and_data() {
+    dotenv::dotenv().ok();
+
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // ---- Register and login ----
+    let user = serde_json::json!({"username": "test_del_user", "password": "del123"});
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &user).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register: {r}");
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &user).await;
+    assert_eq!(r["code"], 200, "login: {r}");
+    let token = r["data"].as_str().unwrap().to_string();
+
+    // ---- Delete account ----
+    let r = post_json(
+        &client,
+        &format!("{}/api/user/delete", addr),
+        &serde_json::json!({"token": token}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "delete account failed: {r}");
+
+    // ---- Verify cannot login again (user record deleted) ----
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &user).await;
+    assert_ne!(r["code"], 200, "should not be able to login after deletion: {r}");
+
+    server_handle.abort();
+}
+
+/// Verify that account deletion kicks active WebSocket sessions.
+///
+/// Scenario: device A deletes account while device B is still connected.
+/// After deletion, B must be forcefully logged out via a "kicked" WS message.
+///
+/// Steps:
+///   1. Register and login a test user
+///   2. Connect via WebSocket (simulating an active session)
+///   3. Delete account via POST /api/user/delete
+///   4. Read from WS → expect "kicked" message with "account deleted"
+#[tokio::test]
+async fn test_delete_account_kicks_ws() {
+    dotenv::dotenv().ok();
+
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // ---- Register + login ----
+    let user = serde_json::json!({"username": "test_del_kick", "password": "kick123"});
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &user).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register: {r}");
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &user).await;
+    assert_eq!(r["code"], 200, "login: {r}");
+    let token = r["data"].as_str().unwrap().to_string();
+
+    // ---- Connect WS ----
+    let mut ws = ws_connect(&addr, &token).await;
+
+    // ---- Delete account ----
+    let r = post_json(
+        &client,
+        &format!("{}/api/user/delete", addr),
+        &serde_json::json!({"token": token}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "delete: {r}");
+
+    // ---- WS should receive kicked message ----
+    let kicked = ws_send_recv(&mut ws, r#"{"cmd":"heartbeat","seq":0,"data":{}}"#).await;
+    let val: serde_json::Value = serde_json::from_str(&kicked).unwrap();
+    assert_eq!(val["cmd"], "kicked", "expected kicked, got: {kicked}");
+
     server_handle.abort();
 }

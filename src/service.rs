@@ -154,3 +154,33 @@ pub(crate) async fn logout_user(
     tracing::info!("user {username} logged out (uid={})", user.id);
     Ok(user.id)
 }
+
+/// Delete a user account and all associated data.
+/// Returns the deleted user's id so the caller can kick active sessions.
+pub async fn delete_user(
+    pool: &PgPool,
+    config: &Config,
+    token: &str,
+) -> Result<Uuid, (StatusCode, Json<Res<String>>)> {
+    let claims = match crate::jwt::verify_token(token, config) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("delete_user: invalid token: {e}");
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(Res::error(401, "invalid token")),
+            ));
+        }
+    };
+
+    match dao::delete_user(pool, claims.user_id).await {
+        Ok(()) => Ok(claims.user_id),
+        Err(e) => {
+            tracing::error!("delete_user failed for uid={}: {e}", claims.user_id);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::error(500, "failed to delete account")),
+            ))
+        }
+    }
+}

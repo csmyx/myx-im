@@ -230,6 +230,11 @@ pub struct TokenQuery {
     pub token: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DeleteRequest {
+    pub token: String,
+}
+
 /// Chat history entry
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct ChatHistoryItem {

@@ -18,11 +18,11 @@ use uuid::Uuid;
 use crate::dao;
 use crate::jwt::verify_token;
 use crate::model::{
-    ChatHistoryItem, ConversationItem, CreateGroupReq, DeliveryUpdate, GroupActionReq,
-    GroupChatAck, GroupChatReq, GroupHistoryItem, GroupHistoryQuery, GroupInfo, GroupMember,
-    GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, MarkDeliveredReq, PrivateChatAck,
-    PrivateChatReq, PrivatePushMsg, ReadReceipt, RegisterRequest, Res, SearchQuery, TokenQuery,
-    UserSearchItem, WsMessage,
+    ChatHistoryItem, ConversationItem, CreateGroupReq, DeleteRequest, DeliveryUpdate,
+    GroupActionReq, GroupChatAck, GroupChatReq, GroupHistoryItem, GroupHistoryQuery, GroupInfo,
+    GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, MarkDeliveredReq,
+    PrivateChatAck, PrivateChatReq, PrivatePushMsg, ReadReceipt, RegisterRequest, Res, SearchQuery,
+    TokenQuery, UserSearchItem, WsMessage,
 };
 use crate::service;
 use crate::state::AppState;
@@ -34,6 +34,7 @@ pub fn app_router(state: Arc<AppState>) -> Router {
         .route("/api/user/register", post(user_register_handler))
         .route("/api/user/login", post(user_login_handler))
         .route("/api/user/logout", post(user_logout_handler))
+        .route("/api/user/delete", post(user_delete_handler))
         .route("/api/message/history", get(message_history_handler))
         .route("/api/conversations", get(conversations_handler))
         .route("/api/user/search", get(user_search_handler))
@@ -532,6 +533,29 @@ async fn user_logout_handler(
             (
                 StatusCode::OK,
                 Json(Res::success("".to_string(), "logout success")),
+            )
+                .into_response()
+        }
+        Err(err) => err.into_response(),
+    }
+}
+
+async fn user_delete_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<DeleteRequest>,
+) -> impl IntoResponse {
+    match service::delete_user(&state.pg_pool, &state.config, &req.token).await {
+        Ok(uid) => {
+            // Kick any active WebSocket sessions for this user
+            state.send_to_user(
+                uid,
+                axum::extract::ws::Utf8Bytes::from_static(
+                    r#"{"cmd":"kicked","seq":0,"data":{"msg":"account deleted"}}"#,
+                ),
+            );
+            (
+                StatusCode::OK,
+                Json(Res::success("ok".to_string(), "account deleted")),
             )
                 .into_response()
         }

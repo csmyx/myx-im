@@ -220,3 +220,10 @@
 
 - [ ] "+" 按钮 → 创建/加入群弹窗
 - [ ] 群信息面板：名称 + 成员列表 + 退出按钮
+
+### 23. 账号注销 ✅
+
+- [x] `POST /api/user/delete` — JWT 验证后删除用户及关联数据
+- [x] DAO `delete_user` — 按序清理：私聊消息 → 群组 → 群消息 → 已读光标 → 用户记录
+- [x] 前端 Me 页面 "Delete Account" 按钮 + 确认弹窗
+- [x] `tests/integration_test.rs` `test_delete_account_removes_user_and_data`
