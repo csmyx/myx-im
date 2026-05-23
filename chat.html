@@ -1049,10 +1049,10 @@
             ws.onmessage = (e) => {
                 try {
                     const msg = JSON.parse(e.data);
-                    if (msg.from_uid && msg.to_uid && msg.content !== undefined && !msg.cmd) {
-                        handlePush(msg);
-                    } else if (msg.group_id && msg.from_uid && msg.content !== undefined && !msg.cmd) {
-                        handleGroupPush(msg);
+                    if (msg.cmd === 'private_push') {
+                        handlePush(msg.data);
+                    } else if (msg.cmd === 'group_push') {
+                        handleGroupPush(msg.data);
                     } else if (msg.cmd === 'private_chat_ack') {
                         handleAck(msg);
                     } else if (msg.cmd === 'delivery_update') {

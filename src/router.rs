@@ -101,7 +101,10 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
                             send_time: msg.send_time as u64,
                         };
                         if let Ok(json) = serde_json::to_string(&push) {
-                            let _ = tx.send(Utf8Bytes::from(json));
+                            let _ = tx.send(Utf8Bytes::from(format!(
+                                r#"{{"cmd":"private_push","seq":0,"data":{}}}"#,
+                                json
+                            )));
                         }
                     }
                 }
@@ -251,7 +254,13 @@ async fn handle_biz_msg(
                         send_time,
                     };
                     let delivered = if let Ok(json) = serde_json::to_string(&push) {
-                        state.send_to_user(req.to_uid, Utf8Bytes::from(json))
+                        state.send_to_user(
+                            req.to_uid,
+                            Utf8Bytes::from(format!(
+                                r#"{{"cmd":"private_push","seq":{},"data":{}}}"#,
+                                ws_msg.seq, json
+                            )),
+                        )
                     } else {
                         tracing::error!("failed to serialize push msg to user={}", req.to_uid);
                         false
@@ -347,7 +356,10 @@ async fn handle_biz_msg(
                                 send_time,
                             };
                             if let Ok(json) = serde_json::to_string(&push) {
-                                let payload = Utf8Bytes::from(json);
+                                let payload = Utf8Bytes::from(format!(
+                                    r#"{{"cmd":"group_push","seq":0,"data":{}}}"#,
+                                    json
+                                ));
                                 for member_uid in &members {
                                     if *member_uid != uid {
                                         state.send_to_user(*member_uid, payload.clone());
