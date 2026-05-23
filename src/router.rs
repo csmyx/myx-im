@@ -110,9 +110,15 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
         });
     }
 
+    // Spawn a task that forwards messages from the mpsc channel to the WS sender.
+    // When the WS write side dies (client disconnects), we break the loop,
+    // which drops `rx`. This causes future `tx.send()` calls in send_to_user()
+    // to fail, triggering lazy cleanup of this user's entry from the online map.
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            let _ = sender.send(Message::Text(msg)).await;
+            if sender.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
         }
     });
 
@@ -126,8 +132,11 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
         }
     }
 
+    // NOTE: We intentionally do NOT call state.remove_online_user(user_id) here.
+    // If this connection was kicked by a duplicate login, remove_online_user would
+    // delete the NEW connection's entry, not ours. Dead entries are cleaned
+    // lazily by send_to_user() when the forwarding task's `rx` gets dropped.
     tracing::info!("WS disconnected: user={user_id}");
-    state.remove_online_user(user_id);
 }
 
 async fn handle_biz_msg(
@@ -563,9 +572,11 @@ async fn group_join_handler(
     };
 
     match dao::join_group(&state.pg_pool, req.group_id, claims.user_id).await {
-        Ok(()) => {
-            (StatusCode::OK, Json(Res::success("".to_string(), "joined group"))).into_response()
-        }
+        Ok(()) => (
+            StatusCode::OK,
+            Json(Res::success("".to_string(), "joined group")),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("join_group failed: {e}");
             (
@@ -594,9 +605,11 @@ async fn group_leave_handler(
     };
 
     match dao::leave_group(&state.pg_pool, req.group_id, claims.user_id).await {
-        Ok(()) => {
-            (StatusCode::OK, Json(Res::success("".to_string(), "left group"))).into_response()
-        }
+        Ok(()) => (
+            StatusCode::OK,
+            Json(Res::success("".to_string(), "left group")),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!("leave_group failed: {e}");
             (
@@ -654,9 +667,7 @@ async fn group_members_handler(
     };
 
     match dao::list_group_members(&state.pg_pool, query.group_id).await {
-        Ok(members) => {
-            (StatusCode::OK, Json(Res::success(members, "ok"))).into_response()
-        }
+        Ok(members) => (StatusCode::OK, Json(Res::success(members, "ok"))).into_response(),
         Err(e) => {
             tracing::error!("list_group_members failed: {e}");
             (
@@ -692,7 +703,10 @@ async fn group_history_handler(
             tracing::error!("get_group_history failed: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(Res::<Vec<GroupHistoryItem>>::error(500, "query history failed")),
+                Json(Res::<Vec<GroupHistoryItem>>::error(
+                    500,
+                    "query history failed",
+                )),
             )
                 .into_response()
         }

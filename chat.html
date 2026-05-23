@@ -137,11 +137,13 @@
 
         /* ===== Auth Screen ===== */
         #authScreen {
+            position: absolute;
+            inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100%;
-            padding: 20px;
+            background: var(--bg);
+            z-index: 50;
         }
 
         .auth-box {
@@ -1059,6 +1061,9 @@
                         handleTyping(msg);
                     } else if (msg.cmd === 'read_receipt') {
                         handleReadReceipt(msg);
+                    } else if (msg.cmd === 'kicked') {
+                        $('authErr').textContent = 'Logged in from another device';
+                        doLogout();
                     }
                 } catch (_) { }
             };

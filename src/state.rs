@@ -23,10 +23,22 @@ struct OnlineUser {
 impl AppState {
     pub fn insert_online_user(&self, uid: Uuid, tx: mpsc::UnboundedSender<Utf8Bytes>) {
         let mut mp = self.online_users.lock().unwrap();
+        if let Some(old) = mp.remove(&uid) {
+            let _ = old.tx.send(Utf8Bytes::from_static(
+                r#"{"cmd":"kicked","seq":0,"data":{"msg":"logged in elsewhere"}}"#,
+            ));
+        }
         mp.insert(uid, OnlineUser { tx });
     }
 
-    /// Try to deliver a message to an online user. Returns true if delivered, false if user is offline.
+    /// Try to deliver a message to an online user. Returns true if delivered.
+    ///
+    /// # Lazy dead-entry cleanup
+    /// If the forwarding task in handle_im_websocket has exited (WS write side
+    /// dead), its `rx` was dropped, causing `sender.send(msg)` to fail. We
+    /// catch this and remove the stale entry. This is the ONLY cleanup mechanism
+    /// for non-explicit disconnects (browser close, network drop) and kicked
+    /// connections (duplicate login).
     pub fn send_to_user(&self, uid: Uuid, msg: Utf8Bytes) -> bool {
         let Ok(mut mp) = self.online_users.lock() else {
             return false;
@@ -35,6 +47,7 @@ impl AppState {
             tracing::debug!("user {uid} offline, message dropped");
             return false;
         };
+        // Lazy dead-entry cleanup: receiver dropped → remove.
         if let Err(e) = sender.send(msg) {
             mp.remove(&uid);
             tracing::debug!("user {uid} disconnected, cleaned up: {e}");

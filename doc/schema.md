@@ -342,3 +342,42 @@ graph TB
     onmessage --> ReadRec
     onmessage --> Typing
 ```
+
+---
+
+## WebSocket Task Topology
+
+How `handle_im_websocket` (src/router.rs:87) orchestrates 3 concurrent tasks
+communicating via channels. Arrows show data flow.
+
+```mermaid
+graph TB
+    subgraph "handle_im_websocket (main task)"
+        MAIN["while let msg = receiver.next()<br/>→ handle_biz_msg()<br/>→ break on Close"]
+    end
+    subgraph "Undelivered Sync (spawned)"
+        SYNC["tokio::spawn<br/>reads undelivered from DB<br/>sends via tx"]
+    end
+    subgraph "Forwarding (spawned)"
+        FWD["while let msg = rx.recv()<br/>→ sender.send(Message::Text)<br/>break on WS write error"]
+    end
+    subgraph "AppState.online_users"
+        MAP["HashMap(Uuid, OnlineUser.tx)"]
+    end
+    MAIN -- "tx clone" --> SYNC
+    MAIN -- "tx clone" --> MAP
+    MAIN -- "rx (mpsc)" --> FWD
+    MAP -- "send_to_user() → tx.send()" --> FWD
+    SYNC -- "tx.send()" --> FWD
+    FWD -. "rx dropped → cleanup" .-> MAP
+```
+
+### Lifecycle
+
+| Event                     | What happens                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| Client connects           | `insert_online_user` stores `tx` in map, spawns sync + fwd tasks                         |
+| `send_to_user(uid, msg)`  | Looks up `tx` in map, sends → fwd → WS                                                   |
+| Client disconnects        | WS `receiver` returns None, main exits. Fwd's `sender.send()` fails, `break`, drops `rx` |
+| Kicked by duplicate login | Old fwd breaks, drops `rx`. New connection's `tx` replaces map entry                     |
+| Dead entry cleanup        | Next `send_to_user` → `tx.send()` fails (rx dropped) → `mp.remove(&uid)`                 |
