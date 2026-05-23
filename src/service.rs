@@ -60,11 +60,18 @@ pub async fn login_user(
     }
 
     let user = match dao::find_user_by_username(pool, &username).await {
-        Ok(user) => user,
+        Ok(Some(user)) => user,
+        Ok(None) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(Res::error(401, "invalid username or password")),
+            );
+        }
         Err(e) => {
+            tracing::error!("find_user_by_username failed: {e}");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(Res::error(500, &e.to_string())),
+                Json(Res::error(500, "internal error")),
             );
         }
     };
@@ -105,11 +112,18 @@ pub(crate) async fn logout_user(
     }
 
     let user = match dao::find_user_by_username(pool, &username).await {
-        Ok(user) => user,
+        Ok(Some(user)) => user,
+        Ok(None) => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(Res::error(401, "invalid username or password")),
+            ));
+        }
         Err(e) => {
+            tracing::error!("find_user_by_username failed: {e}");
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(Res::error(500, &e.to_string())),
+                Json(Res::error(500, "internal error")),
             ));
         }
     };

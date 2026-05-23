@@ -79,13 +79,13 @@ pub async fn save_user(
     Ok(res.id)
 }
 
-pub async fn find_user_by_username(pool: &PgPool, user_name: &str) -> anyhow::Result<User> {
+pub async fn find_user_by_username(pool: &PgPool, user_name: &str) -> anyhow::Result<Option<User>> {
     let user = sqlx::query_as!(
         User,
         r#"SELECT id, username, password_hash, created_at FROM im_users WHERE username = $1"#,
         user_name,
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
     Ok(user)
