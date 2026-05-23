@@ -916,24 +916,30 @@
         }
 
         function handleAck(msg) {
-            const seq = msg.seq;
-            const entry = pendingMsgs[seq];
+            let entry = pendingMsgs[msg.seq];
+            // Fallback: try to find by walking pendingMsgs if seq doesn't match directly
+            if (!entry) {
+                for (const key of Object.keys(pendingMsgs)) {
+                    if (Number(key) === Number(msg.seq)) {
+                        entry = pendingMsgs[key];
+                        break;
+                    }
+                }
+            }
             if (!entry) return;
             const status = entry.el.querySelector('.msg-status');
             if (!status) return;
-            const delivered = msg.data && msg.data.delivered;
+            const delivered = !!(msg.data && msg.data.delivered);
             if (delivered) {
                 status.innerHTML = '<span class="delivered">✓ Delivered</span>';
             } else {
                 status.innerHTML = '<span class="undelivered">◷ Sent (offline)</span>';
             }
-            // Store msg_id mapping for late delivery updates
             if (msg.data && msg.data.msg_id) {
                 entry.msg.msg_id = msg.data.msg_id;
                 msgById[msg.data.msg_id] = entry.el;
             }
-            // Clean up pending entry
-            delete pendingMsgs[seq];
+            delete pendingMsgs[msg.seq];
         }
 
         function handleDeliveryUpdate(msg) {
