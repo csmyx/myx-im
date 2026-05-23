@@ -47,18 +47,18 @@ pub async fn save_message(
     to_uid: Uuid,
     content: &str,
     msg_type: u8,
-) -> anyhow::Result<u64> {
+) -> anyhow::Result<i64> {
     let res = sqlx::query!(
-        r#"INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type) VALUES ($1, $2, $3, $4)"#,
+        r#"INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type) VALUES ($1, $2, $3, $4) RETURNING id"#,
         from_uid as Uuid,
         to_uid as Uuid,
         content,
         msg_type as i16,
     )
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
 
-    Ok(res.rows_affected())
+    Ok(res.id)
 }
 
 pub async fn save_user(

@@ -1,178 +1,374 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>myx-im test</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100dvh; overflow: hidden; }
-    body { font: 12px monospace; background: #1e1e1e; color: #d4d4d4; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
-    .row { display: flex; gap: 8px; }
-    .panel { flex: 1; border: 1px solid #3c3c3c; border-radius: 4px; padding: 6px 8px; background: #252526; }
-    .panel h2 { font-size: 12px; color: #569cd6; margin-bottom: 4px; }
-    .panel input { width: 100%; padding: 3px 6px; margin: 1px 0; border: 1px solid #3c3c3c; border-radius: 2px; background: #3c3c3c; color: #d4d4d4; font: 11px monospace; }
-    .panel input:focus { outline: none; border-color: #569cd6; }
-    .panel button { padding: 3px 10px; margin: 3px 2px 0 0; border: none; border-radius: 2px; cursor: pointer; font: 11px monospace; font-weight: bold; }
-    .btn-go { background: #0e639c; color: #fff; }
-    .btn-go:hover { background: #1177bb; }
-    .status { font-size: 10px; padding: 1px 5px; border-radius: 2px; }
-    .off { background: #5a1d1d; color: #f44747; }
-    .on  { background: #1d5a1d; color: #4ec94e; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>myx-im test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-    .bar { display: flex; gap: 6px; }
-    .bar input { flex: 1; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 3px; background: #3c3c3c; color: #d4d4d4; font: 12px monospace; }
-    .bar input:focus { outline: none; border-color: #569cd6; }
-    .bar button { padding: 4px 10px; border: none; border-radius: 3px; cursor: pointer; font: 11px monospace; font-weight: bold; background: #0e639c; color: #fff; white-space: nowrap; }
-    .bar button:hover { background: #1177bb; }
+        html,
+        body {
+            height: 100dvh;
+            overflow: hidden;
+        }
 
-    #log { flex: 1; overflow-y: auto; background: #1e1e1e; padding: 4px 8px; border: 1px solid #3c3c3c; border-radius: 4px; line-height: 1.4; min-height: 0; -webkit-overflow-scrolling: touch; }
-    .msg-out { color: #569cd6; }
-    .msg-in  { color: #ce9178; }
-    .msg-sys { color: #6a9955; }
+        body {
+            font: 12px monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 6px;
+        }
 
-    @media (max-width: 600px) {
-      body { font-size: 13px; padding: 4px; gap: 4px; }
-      .row { flex-direction: column; gap: 4px; }
-      .panel { padding: 8px 10px; }
-      .panel h2 { font-size: 13px; margin-bottom: 6px; }
-      .panel input { padding: 8px 8px; font-size: 15px; margin: 2px 0; }
-      .panel button { padding: 8px 14px; font-size: 13px; margin: 4px 4px 0 0; }
-      .status { font-size: 11px; padding: 2px 6px; }
-      .bar { gap: 4px; }
-      .bar input { padding: 8px 8px; font-size: 15px; }
-      .bar button { padding: 8px 14px; font-size: 13px; }
-      #log { padding: 6px 8px; font-size: 12px; }
-    }
+        .row {
+            display: flex;
+            gap: 8px;
+        }
 
-    @media (max-width: 380px) {
-      body { font-size: 12px; padding: 2px; gap: 2px; }
-      .panel { padding: 6px 6px; }
-      .panel input { padding: 6px 6px; font-size: 14px; }
-      .panel button { padding: 6px 10px; font-size: 12px; }
-      .bar input { padding: 6px 6px; font-size: 14px; }
-      .bar button { padding: 6px 10px; font-size: 12px; }
-    }
-  </style>
+        .panel {
+            flex: 1;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 6px 8px;
+            background: #252526;
+        }
+
+        .panel h2 {
+            font-size: 12px;
+            color: #569cd6;
+            margin-bottom: 4px;
+        }
+
+        .panel input {
+            width: 100%;
+            padding: 3px 6px;
+            margin: 1px 0;
+            border: 1px solid #3c3c3c;
+            border-radius: 2px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font: 11px monospace;
+        }
+
+        .panel input:focus {
+            outline: none;
+            border-color: #569cd6;
+        }
+
+        .panel button {
+            padding: 3px 10px;
+            margin: 3px 2px 0 0;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font: 11px monospace;
+            font-weight: bold;
+        }
+
+        .btn-go {
+            background: #0e639c;
+            color: #fff;
+        }
+
+        .btn-go:hover {
+            background: #1177bb;
+        }
+
+        .status {
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 2px;
+        }
+
+        .off {
+            background: #5a1d1d;
+            color: #f44747;
+        }
+
+        .on {
+            background: #1d5a1d;
+            color: #4ec94e;
+        }
+
+        .bar {
+            display: flex;
+            gap: 6px;
+        }
+
+        .bar input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid #3c3c3c;
+            border-radius: 3px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font: 12px monospace;
+        }
+
+        .bar input:focus {
+            outline: none;
+            border-color: #569cd6;
+        }
+
+        .bar button {
+            padding: 4px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font: 11px monospace;
+            font-weight: bold;
+            background: #0e639c;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        .bar button:hover {
+            background: #1177bb;
+        }
+
+        #log {
+            flex: 1;
+            overflow-y: auto;
+            background: #1e1e1e;
+            padding: 4px 8px;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            line-height: 1.4;
+            min-height: 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .msg-out {
+            color: #569cd6;
+        }
+
+        .msg-in {
+            color: #ce9178;
+        }
+
+        .msg-sys {
+            color: #6a9955;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                font-size: 13px;
+                padding: 4px;
+                gap: 4px;
+            }
+
+            .row {
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .panel {
+                padding: 8px 10px;
+            }
+
+            .panel h2 {
+                font-size: 13px;
+                margin-bottom: 6px;
+            }
+
+            .panel input {
+                padding: 8px 8px;
+                font-size: 15px;
+                margin: 2px 0;
+            }
+
+            .panel button {
+                padding: 8px 14px;
+                font-size: 13px;
+                margin: 4px 4px 0 0;
+            }
+
+            .status {
+                font-size: 11px;
+                padding: 2px 6px;
+            }
+
+            .bar {
+                gap: 4px;
+            }
+
+            .bar input {
+                padding: 8px 8px;
+                font-size: 15px;
+            }
+
+            .bar button {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+
+            #log {
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            body {
+                font-size: 12px;
+                padding: 2px;
+                gap: 2px;
+            }
+
+            .panel {
+                padding: 6px 6px;
+            }
+
+            .panel input {
+                padding: 6px 6px;
+                font-size: 14px;
+            }
+
+            .panel button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .bar input {
+                padding: 6px 6px;
+                font-size: 14px;
+            }
+
+            .bar button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
 </head>
+
 <body>
 
-<div class="row">
-  <div class="panel">
-    <h2>User A</h2>
-    <input type="text" id="userA" placeholder="username" value="alice">
-    <input type="password" id="passA" placeholder="password" value="alice123">
-    <button class="btn-go" onclick="register('A')">Register</button>
-    <button class="btn-go" onclick="login('A')">Login & Connect</button>
-    <span class="status off" id="statusA">offline</span>
-  </div>
-  <div class="panel">
-    <h2>User B</h2>
-    <input type="text" id="userB" placeholder="username" value="bob">
-    <input type="password" id="passB" placeholder="password" value="bob123">
-    <button class="btn-go" onclick="register('B')">Register</button>
-    <button class="btn-go" onclick="login('B')">Login & Connect</button>
-    <span class="status off" id="statusB">offline</span>
-  </div>
-</div>
+    <div class="row">
+        <div class="panel">
+            <h2>User A</h2>
+            <input type="text" id="userA" placeholder="username" value="alice">
+            <input type="password" id="passA" placeholder="password" value="alice123">
+            <button class="btn-go" onclick="register('A')">Register</button>
+            <button class="btn-go" onclick="login('A')">Login & Connect</button>
+            <span class="status off" id="statusA">offline</span>
+        </div>
+        <div class="panel">
+            <h2>User B</h2>
+            <input type="text" id="userB" placeholder="username" value="bob">
+            <input type="password" id="passB" placeholder="password" value="bob123">
+            <button class="btn-go" onclick="register('B')">Register</button>
+            <button class="btn-go" onclick="login('B')">Login & Connect</button>
+            <span class="status off" id="statusB">offline</span>
+        </div>
+    </div>
 
-<div class="bar">
-  <input type="text" id="chatInput" placeholder="Message (Enter = A→B)" autocomplete="off">
-  <button onclick="sendChat()">A→B</button>
-  <button onclick="sendChatB()">B→A</button>
-</div>
+    <div class="bar">
+        <input type="text" id="chatInput" placeholder="Message (Enter = A->B)" autocomplete="off">
+        <button onclick="sendChat()">A->B</button>
+        <button onclick="sendChatB()">B->A</button>
+    </div>
 
-<div id="log"></div>
+    <div id="log"></div>
 
-<script>
-  const clients = { A: { ws: null, uid: null, token: null }, B: { ws: null, uid: null, token: null } };
-  const log = document.getElementById('log');
+    <script>
+        const clients = { A: { ws: null, uid: null, token: null }, B: { ws: null, uid: null, token: null } };
+        const log = document.getElementById('log');
 
-  function status(user, text, on) {
-    const el = document.getElementById('status' + user);
-    el.textContent = text;
-    el.className = 'status ' + (on ? 'on' : 'off');
-  }
+        function status(user, text, on) {
+            const el = document.getElementById('status' + user);
+            el.textContent = text;
+            el.className = 'status ' + (on ? 'on' : 'off');
+        }
 
-  function sys(msg) { addLog(msg, 'msg-sys'); }
+        function sys(msg) { addLog(msg, 'msg-sys'); }
 
-  function addLog(text, cls) {
-    const div = document.createElement('div');
-    div.className = cls || '';
-    div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
-    log.appendChild(div);
-    log.scrollTop = log.scrollHeight;
-  }
+        function addLog(text, cls) {
+            const div = document.createElement('div');
+            div.className = cls || '';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
 
-  async function register(user) {
-    const u = document.getElementById('user' + user).value.trim();
-    const p = document.getElementById('pass' + user).value;
-    if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
-    sys(user + ' registering...');
-    const r = await fetch('/api/user/register', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: u, password: p })
-    });
-    const d = await r.json();
-    sys(d.code === 200 ? '✅ ' + user + ' registered' : '⚠️ ' + d.msg);
-  }
+        async function register(user) {
+            const u = document.getElementById('user' + user).value.trim();
+            const p = document.getElementById('pass' + user).value;
+            if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
+            sys(user + ' registering...');
+            const r = await fetch('/api/user/register', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const d = await r.json();
+            sys(d.code === 200 ? '✅ ' + user + ' registered' : '⚠️ ' + d.msg);
+        }
 
-  async function login(user) {
-    const u = document.getElementById('user' + user).value.trim();
-    const p = document.getElementById('pass' + user).value;
-    if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
-    sys(user + ' logging in...');
-    const r = await fetch('/api/user/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: u, password: p })
-    });
-    const d = await r.json();
-    if (d.code !== 200) { sys('❌ ' + user + ' login: ' + d.msg); return; }
-    const token = d.data;
-    let uid;
-    try { uid = JSON.parse(atob(token.split('.')[1])).user_id; } catch(_) {}
-    clients[user].token = token;
-    clients[user].uid = uid;
-    sys('✅ ' + user + ' logged in uid=' + uid);
-    connectWS(user);
-  }
+        async function login(user) {
+            const u = document.getElementById('user' + user).value.trim();
+            const p = document.getElementById('pass' + user).value;
+            if (!u || !p) { sys('❌ ' + user + ': fill fields'); return; }
+            sys(user + ' logging in...');
+            const r = await fetch('/api/user/login', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const d = await r.json();
+            if (d.code !== 200) { sys('❌ ' + user + ' login: ' + d.msg); return; }
+            const token = d.data;
+            let uid;
+            try { uid = JSON.parse(atob(token.split('.')[1])).user_id; } catch (_) { }
+            clients[user].token = token;
+            clients[user].uid = uid;
+            sys('✅ ' + user + ' logged in uid=' + uid);
+            connectWS(user);
+        }
 
-  function connectWS(user) {
-    const c = clients[user];
-    if (!c.token) return;
-    if (c.ws) c.ws.close();
-    const ws = new WebSocket(`ws://${location.host}/im/ws?token=${encodeURIComponent(c.token)}`);
-    ws.onopen = () => { c.ws = ws; status(user, 'connected', true); sys('🔗 ' + user + ' connected'); };
-    ws.onclose = () => { c.ws = null; status(user, 'offline', false); sys('🔌 ' + user + ' disconnected'); };
-    ws.onmessage = (e) => {
-      try { addLog('📩 ' + user + ': ' + JSON.stringify(JSON.parse(e.data)), 'msg-in'); }
-      catch(_) { addLog('📩 ' + user + ': ' + e.data, 'msg-in'); }
-    };
-  }
+        function connectWS(user) {
+            const c = clients[user];
+            if (!c.token) return;
+            if (c.ws) c.ws.close();
+            const ws = new WebSocket(`ws://${location.host}/im/ws?token=${encodeURIComponent(c.token)}`);
+            ws.onopen = () => { c.ws = ws; status(user, 'connected', true); sys('🔗 ' + user + ' connected'); };
+            ws.onclose = () => { c.ws = null; status(user, 'offline', false); sys('🔌 ' + user + ' disconnected'); };
+            ws.onmessage = (e) => {
+                try { addLog('📩 ' + user + ': ' + JSON.stringify(JSON.parse(e.data)), 'msg-in'); }
+                catch (_) { addLog('📩 ' + user + ': ' + e.data, 'msg-in'); }
+            };
+        }
 
-  function sendRaw(user, toUid) {
-    const c = clients[user];
-    if (!c.ws || c.ws.readyState !== 1) { sys('❌ ' + user + ' not connected'); return; }
-    const inp = document.getElementById('chatInput');
-    const content = inp.value.trim();
-    if (!content) return;
-    c.ws.send(JSON.stringify({ cmd: 'private_chat', seq: Date.now(), data: { to_uid: toUid, content, msg_type: 1 } }));
-    addLog('📤 ' + user + ' → ' + toUid + ': ' + content, 'msg-out');
-    inp.value = ''; inp.focus();
-  }
+        function sendRaw(user, toUid) {
+            const c = clients[user];
+            if (!c.ws || c.ws.readyState !== 1) { sys('❌ ' + user + ' not connected'); return; }
+            const inp = document.getElementById('chatInput');
+            const content = inp.value.trim();
+            if (!content) return;
+            c.ws.send(JSON.stringify({ cmd: 'private_chat', seq: Date.now(), data: { to_uid: toUid, content, msg_type: 1 } }));
+            addLog('📤 ' + user + ' -> ' + toUid + ': ' + content, 'msg-out');
+            inp.value = ''; inp.focus();
+        }
 
-  function sendChat() {
-    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both must log in first'); return; }
-    sendRaw('A', clients.B.uid);
-  }
-  function sendChatB() {
-    if (!clients.A.uid || !clients.B.uid) { sys('❌ Both must log in first'); return; }
-    sendRaw('B', clients.A.uid);
-  }
+        function sendChat() {
+            // if (!clients.A.uid || !clients.B.uid) { sys('❌ Both must log in first'); return; }
+            sendRaw('A', clients.B.uid);
+        }
+        function sendChatB() {
+            // if (!clients.A.uid || !clients.B.uid) { sys('❌ Both must log in first'); return; }
+            sendRaw('B', clients.A.uid);
+        }
 
-  document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+        document.getElementById('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
-  sys('💡 Register both users, then Login & Connect on each.');
-</script>
+        sys('💡 Register both users, then Login & Connect on each.');
+    </script>
 </body>
+
 </html>

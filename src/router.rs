@@ -63,7 +63,7 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
 
     let (mut sender, mut receiver) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    state.insert_online_user(user_id, tx);
+    state.insert_online_user(user_id, tx.clone());
 
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
@@ -74,7 +74,7 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
     while let Some(Ok(msg)) = receiver.next().await {
         match msg {
             Message::Text(raw) => {
-                handle_biz_msg(user_id, raw.as_str(), state.clone()).await;
+                handle_biz_msg(user_id, raw.as_str(), state.clone(), &tx).await;
             }
             Message::Close(_) => break,
             _ => {}
@@ -82,13 +82,36 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
     }
 }
 
-async fn handle_biz_msg(uid: Uuid, text: &str, state: Arc<AppState>) {
-    let ws_msg: WsMessage = serde_json::from_str(text).expect("failed to parse WsMessage");
+async fn handle_biz_msg(
+    uid: Uuid,
+    text: &str,
+    state: Arc<AppState>,
+    tx: &mpsc::UnboundedSender<Utf8Bytes>,
+) {
+    let ws_msg: WsMessage = match serde_json::from_str(text) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!("failed to parse WsMessage: {e}");
+            let _ = tx.send(Utf8Bytes::from(
+                r#"{"cmd":"error","seq":0,"data":{"code":400,"msg":"invalid message format"}}"#,
+            ));
+            return;
+        }
+    };
     match ws_msg.cmd.as_str() {
         "heartbeat" => {}
         "private_chat" => {
-            let req: PrivateChatReq =
-                serde_json::from_value(ws_msg.data).expect("failed to parse private_chat request");
+            let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!("failed to parse private_chat request: {e}");
+                    let _ = tx.send(Utf8Bytes::from(format!(
+                        r#"{{"cmd":"error","seq":{},"data":{{"code":400,"msg":"invalid private_chat data: {e}"}}}}"#,
+                        ws_msg.seq,
+                    )));
+                    return;
+                }
+            };
 
             let _ = dao::save_message(&state.pg_pool, uid, req.to_uid, &req.content, req.msg_type)
                 .await;
