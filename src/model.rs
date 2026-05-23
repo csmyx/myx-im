@@ -124,19 +124,88 @@ pub struct ReadReceipt {
 /// Group chat upstream
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupChatReq {
-    pub group_id: u64,
+    pub group_id: Uuid,
     pub content: String,
     pub msg_type: u8,
+    pub client_msg_id: Option<String>,
+}
+
+/// Group chat send confirmation
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupChatAck {
+    pub msg_id: i64,
+    pub send_time: u64,
+    pub online_count: usize,
 }
 
 /// Group chat downstream push
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupPushMsg {
-    pub group_id: u64,
-    pub from_uid: u64,
-    pub from_nick: String,
+    pub group_id: Uuid,
+    pub from_uid: Uuid,
+    pub from_name: String,
     pub content: String,
+    pub msg_type: u8,
     pub send_time: u64,
+}
+
+/// Create group request
+#[derive(Debug, Deserialize)]
+pub struct CreateGroupReq {
+    pub token: String,
+    pub name: String,
+}
+
+/// Join/Leave group request
+#[derive(Debug, Deserialize)]
+pub struct GroupActionReq {
+    pub token: String,
+    pub group_id: Uuid,
+}
+
+/// Group info (for list)
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct GroupInfo {
+    pub group_id: Uuid,
+    pub name: String,
+    pub owner_uid: Uuid,
+    pub member_count: i64,
+    pub created_at: Option<OffsetDateTime>,
+}
+
+/// Group member
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct GroupMember {
+    pub user_id: Uuid,
+    pub username: String,
+}
+
+/// Group history item
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct GroupHistoryItem {
+    pub msg_id: i64,
+    pub group_id: Uuid,
+    pub from_uid: Uuid,
+    pub from_name: String,
+    pub content: String,
+    pub msg_type: i16,
+    pub send_time: i64,
+}
+
+/// Group members query
+#[derive(Debug, Deserialize)]
+pub struct GroupQuery {
+    pub token: String,
+    pub group_id: Uuid,
+}
+
+/// Group history query
+#[derive(Debug, Deserialize)]
+pub struct GroupHistoryQuery {
+    pub token: String,
+    pub group_id: Uuid,
+    pub before: Option<i64>,
+    pub limit: Option<i64>,
 }
 
 /// Error response

@@ -1,4 +1,7 @@
-use crate::model::{ChatHistoryItem, ConversationItem, User, UserSearchItem};
+use crate::model::{
+    ChatHistoryItem, ConversationItem, GroupHistoryItem, GroupInfo, GroupMember, User,
+    UserSearchItem,
+};
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -204,7 +207,241 @@ pub async fn get_undelivered_ids_from_peer(
 
     Ok(rows.into_iter().map(|r| r.id).collect())
 }
+// ===== Group DAO =====
 
+pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow::Result<GroupInfo> {
+    let group_id = Uuid::new_v4();
+    sqlx::query!(
+        "INSERT INTO im_groups (id, name, owner_uid) VALUES ($1, $2, $3)",
+        group_id,
+        name,
+        owner_uid,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("create_group failed: {e}");
+        e
+    })?;
+
+    sqlx::query!(
+        "INSERT INTO im_group_members (group_id, user_id) VALUES ($1, $2)",
+        group_id,
+        owner_uid,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("create_group add owner failed: {e}");
+        e
+    })?;
+
+    Ok(GroupInfo {
+        group_id,
+        name: name.to_owned(),
+        owner_uid,
+        member_count: 1,
+        created_at: None,
+    })
+}
+
+pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
+    sqlx::query!(
+        "INSERT INTO im_group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        group_id,
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("join_group failed: {e}");
+        e
+    })?;
+    Ok(())
+}
+
+pub async fn leave_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
+    sqlx::query!(
+        "DELETE FROM im_group_members WHERE group_id = $1 AND user_id = $2",
+        group_id,
+        user_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("leave_group failed: {e}");
+        e
+    })?;
+    Ok(())
+}
+
+pub async fn list_my_groups(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Vec<GroupInfo>> {
+    let rows = sqlx::query_as!(
+        GroupInfo,
+        r#"SELECT g.id AS group_id, g.name, g.owner_uid,
+                  COUNT(m.user_id)::bigint AS "member_count!",
+                  g.created_at
+           FROM im_groups g
+           JOIN im_group_members m ON m.group_id = g.id
+           WHERE g.id IN (SELECT group_id FROM im_group_members WHERE user_id = $1)
+           GROUP BY g.id
+           ORDER BY g.created_at DESC"#,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("list_my_groups failed: {e}");
+        e
+    })?;
+    Ok(rows)
+}
+
+pub async fn list_group_members(pool: &PgPool, group_id: Uuid) -> anyhow::Result<Vec<GroupMember>> {
+    let rows = sqlx::query_as!(
+        GroupMember,
+        r#"SELECT u.id AS user_id, u.username
+           FROM im_group_members gm
+           JOIN im_users u ON u.id = gm.user_id
+           WHERE gm.group_id = $1
+           ORDER BY gm.joined_at"#,
+        group_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("list_group_members failed: {e}");
+        e
+    })?;
+    Ok(rows)
+}
+
+pub async fn get_group_history(
+    pool: &PgPool,
+    group_id: Uuid,
+    before: Option<i64>,
+    limit: i64,
+) -> anyhow::Result<Vec<GroupHistoryItem>> {
+    let rows = sqlx::query_as!(
+        GroupHistoryItem,
+        r#"
+        SELECT
+            gm.id AS msg_id,
+            gm.group_id,
+            gm.from_uid,
+            u.username AS from_name,
+            gm.content,
+            gm.msg_type,
+            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS "send_time!"
+        FROM im_group_messages gm
+        JOIN im_users u ON u.id = gm.from_uid
+        WHERE gm.group_id = $1
+          AND gm.id < COALESCE($2::bigint, 9223372036854775807)
+        ORDER BY gm.id DESC
+        LIMIT $3
+        "#,
+        group_id,
+        before,
+        limit,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_group_history failed: {e}");
+        e
+    })?;
+    Ok(rows)
+}
+
+pub async fn save_group_message(
+    pool: &PgPool,
+    group_id: Uuid,
+    from_uid: Uuid,
+    content: &str,
+    msg_type: u8,
+    client_msg_id: Option<&str>,
+) -> anyhow::Result<i64> {
+    if let Some(cid) = client_msg_id {
+        let res = sqlx::query!(
+            r#"INSERT INTO im_group_messages (group_id, from_uid, content, msg_type, client_msg_id)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (client_msg_id) DO NOTHING
+               RETURNING id"#,
+            group_id,
+            from_uid,
+            content,
+            msg_type as i16,
+            cid,
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("save_group_message failed: {e}");
+            e
+        })?;
+
+        if let Some(row) = res {
+            return Ok(row.id);
+        }
+        let existing = sqlx::query!(
+            "SELECT id FROM im_group_messages WHERE client_msg_id = $1",
+            cid,
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("save_group_message dedup lookup failed: {e}");
+            e
+        })?;
+        return Ok(existing.id);
+    }
+
+    let res = sqlx::query!(
+        r#"INSERT INTO im_group_messages (group_id, from_uid, content, msg_type)
+           VALUES ($1, $2, $3, $4) RETURNING id"#,
+        group_id,
+        from_uid,
+        content,
+        msg_type as i16,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("save_group_message failed: {e}");
+        e
+    })?;
+
+    Ok(res.id)
+}
+
+pub async fn is_group_member(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<bool> {
+    let row = sqlx::query!(
+        "SELECT 1 AS _exists FROM im_group_members WHERE group_id = $1 AND user_id = $2",
+        group_id,
+        user_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("is_group_member failed: {e}");
+        e
+    })?;
+    Ok(row.is_some())
+}
+
+pub async fn get_group_member_uids(pool: &PgPool, group_id: Uuid) -> anyhow::Result<Vec<Uuid>> {
+    let rows = sqlx::query!(
+        "SELECT user_id FROM im_group_members WHERE group_id = $1",
+        group_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_group_member_uids failed: {e}");
+        e
+    })?;
+    Ok(rows.into_iter().map(|r| r.user_id).collect())
+}
 pub async fn upsert_read_cursor(
     pool: &PgPool,
     user_id: Uuid,

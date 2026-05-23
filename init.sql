@@ -22,3 +22,27 @@ CREATE TABLE im_read_cursors (
     last_read_msg_id BIGINT NOT NULL,
     PRIMARY KEY (user_id, peer_uid)
 );
+
+CREATE TABLE im_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) NOT NULL,
+    owner_uid UUID NOT NULL REFERENCES im_users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE im_group_members (
+    group_id UUID NOT NULL REFERENCES im_groups(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES im_users(id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (group_id, user_id)
+);
+
+CREATE TABLE im_group_messages (
+    id BIGSERIAL PRIMARY KEY,
+    group_id UUID NOT NULL REFERENCES im_groups(id) ON DELETE CASCADE,
+    from_uid UUID NOT NULL REFERENCES im_users(id),
+    content TEXT NOT NULL,
+    msg_type SMALLINT NOT NULL DEFAULT 1,
+    client_msg_id TEXT UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);

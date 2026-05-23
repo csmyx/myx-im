@@ -332,6 +332,64 @@
             min-height: 0;
         }
 
+        .tab-bar {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .tab-bar button {
+            flex: 1;
+            padding: 10px 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+            border-bottom: 2px solid transparent;
+            transition: all .15s;
+        }
+
+        .tab-bar button.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .bottom-nav {
+            display: none;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+            flex-shrink: 0;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .bottom-nav .nav-inner {
+            display: flex;
+        }
+
+        .bottom-nav button {
+            flex: 1;
+            padding: 8px 0;
+            font-size: 11px;
+            color: var(--text2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .bottom-nav button .icon {
+            font-size: 20px;
+        }
+
+        .bottom-nav button.active {
+            color: var(--primary);
+        }
+
+        @media (max-width: 700px) {
+            .bottom-nav {
+                display: block;
+            }
+        }
+
         .conv-item {
             padding: 12px 16px;
             border-bottom: 1px solid var(--border);
@@ -452,9 +510,6 @@
             overflow-y: auto;
             min-height: 0;
             padding: 16px 18px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
             scroll-behavior: smooth;
         }
 
@@ -464,7 +519,6 @@
             color: var(--text2);
             font-size: 12px;
             cursor: pointer;
-            flex-shrink: 0;
         }
 
         .msg-loading:hover {
@@ -475,7 +529,7 @@
             display: flex;
             gap: 8px;
             max-width: 75%;
-            flex-shrink: 0;
+            margin-bottom: 6px;
         }
 
         .msg-row.mine {
@@ -790,6 +844,10 @@
                     onfocus="onSearchInput()">
                 <div class="search-results" id="searchResults"></div>
             </div>
+            <div class="tab-bar">
+                <button id="tabChats" class="active" onclick="switchTab('chats')">💬 Chats</button>
+                <button id="tabGroups" onclick="switchTab('groups')">👥 Groups</button>
+            </div>
             <div class="conv-list" id="convList"></div>
         </div>
 
@@ -816,6 +874,38 @@
                 </div>
             </div>
         </div>
+        <div class="bottom-nav" id="bottomNav">
+            <div class="nav-inner">
+                <button id="navChats" class="active" onclick="switchTab('chats')"><span
+                        class="icon">💬</span>Chats</button>
+                <button id="navGroups" onclick="switchTab('groups')"><span class="icon">👥</span>Groups</button>
+                <button onclick="doLogout()"><span class="icon">👤</span>Me</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== Modal ====== -->
+    <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+        <div class="modal" id="modalCreateGroup">
+            <h3>Create Group</h3>
+            <label for="groupName">Group Name</label>
+            <input id="groupName" placeholder="e.g. Dev Team" maxlength="50">
+            <div class="err" id="groupErr"></div>
+            <div class="btn-row">
+                <button class="btn-outline" type="button" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="doCreateGroup()">Create</button>
+            </div>
+        </div>
+        <div class="modal" id="modalJoinGroup" style="display:none">
+            <h3>Join Group</h3>
+            <label for="joinGroupId">Group ID</label>
+            <input id="joinGroupId" placeholder="Paste group UUID">
+            <div class="err" id="joinGroupErr"></div>
+            <div class="btn-row">
+                <button class="btn-outline" type="button" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="doJoinGroup()">Join</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -831,6 +921,9 @@
         let msgById = {};         // msg_id → DOM element for late delivery updates
         let typingTimer = null;   // debounce for outgoing typing
         let typingTimeout = null; // timeout to hide incoming typing indicator
+        let activeTab = 'chats';  // 'chats' | 'groups'
+        let groupCache = [];      // cached group list
+        let activeGroup = null;   // Uuid of active group (vs activePeer)
 
         const PAGE_SIZE = 40;
 
@@ -884,8 +977,8 @@
 
         function doLogout() {
             if (ws) ws.close();
-            me = null; ws = null; peers = {}; messages = []; activePeer = null; convCache = [];
-            unreadCounts = {}; pendingMsgs = {}; msgById = {};
+            me = null; ws = null; peers = {}; messages = []; activePeer = null; activeGroup = null; convCache = [];
+            groupCache = []; unreadCounts = {}; pendingMsgs = {}; msgById = {};
             authScreen.style.display = 'flex';
             sidebar.style.display = 'none';
             main.style.display = 'none';
@@ -913,6 +1006,8 @@
                     const msg = JSON.parse(e.data);
                     if (msg.from_uid && msg.to_uid && msg.content !== undefined && !msg.cmd) {
                         handlePush(msg);
+                    } else if (msg.group_id && msg.from_uid && msg.content !== undefined && !msg.cmd) {
+                        handleGroupPush(msg);
                     } else if (msg.cmd === 'private_chat_ack') {
                         handleAck(msg);
                     } else if (msg.cmd === 'delivery_update') {
@@ -940,6 +1035,16 @@
             }
             // Refresh conversations to update last message
             loadConversations();
+        }
+
+        function handleGroupPush(msg) {
+            if (activeGroup === msg.group_id && msg.from_uid !== me.uid) {
+                appendGroupMsg({
+                    msg_id: Date.now(), group_id: msg.group_id, from_uid: msg.from_uid,
+                    from_name: msg.from_name, content: msg.content, msg_type: msg.msg_type,
+                    send_time: msg.send_time
+                });
+            }
         }
 
         function handleAck(msg) {
@@ -1013,6 +1118,189 @@
             }
         }
 
+        // ===== Tab switching =====
+
+        function switchTab(tab) {
+            activeTab = tab;
+            $('tabChats').classList.toggle('active', tab === 'chats');
+            $('tabGroups').classList.toggle('active', tab === 'groups');
+            if ($('navChats')) $('navChats').classList.toggle('active', tab === 'chats');
+            if ($('navGroups')) $('navGroups').classList.toggle('active', tab === 'groups');
+            if (tab === 'groups') {
+                loadGroupList();
+            } else {
+                renderConvList();
+            }
+        }
+
+        async function loadGroupList() {
+            if (!me) return;
+            const d = await api(`/api/group/list?token=${encodeURIComponent(me.token)}`);
+            if (d.code !== 200) return;
+            groupCache = d.data || [];
+            renderGroupList();
+        }
+
+        function renderGroupList() {
+            convList.innerHTML = '<div style="padding:10px 14px;display:flex;gap:6px"><button class="btn-primary" style="flex:1;padding:6px;border-radius:4px;font-size:12px" onclick="openModal(\'create\')">+ Create Group</button><button class="btn-outline" style="flex:1;padding:6px;border-radius:4px;font-size:12px;border:1px solid var(--border)" onclick="openModal(\'join\')">Join Group</button></div>'
+                + (groupCache.length === 0
+                ? '<div style="padding:30px;text-align:center;color:var(--text2);font-size:13px">No groups yet.</div>'
+                : groupCache.map(g => `
+                    <div class="conv-item${activeGroup === g.group_id ? ' active' : ''}" onclick="openGroupChat('${g.group_id}','${escHtml(g.name)}')">
+                        <div class="c-avatar">👥</div>
+                        <div class="c-info"><div class="c-name">${escHtml(g.name)}</div><div class="c-last">${g.member_count} members</div></div>
+                    </div>`).join('');
+        }
+
+        function openGroupChat(groupId, groupName) {
+            activeGroup = groupId;
+            activePeer = null;
+            if (!peers[groupId]) peers[groupId] = { username: groupName };
+            document.body.classList.add('chat-open');
+            main.classList.add('chat-open');
+            noChat.style.display = 'none';
+            chatArea.style.display = 'flex';
+            $('chAvatar').textContent = '👥';
+            $('chName').textContent = groupName;
+            $('chStatus').textContent = 'group';
+            messages = [];
+            msgList.innerHTML = '';
+            msgList.appendChild(loadMore);
+            loadMore.style.display = 'block';
+            loadMore.onclick = () => loadGroupHistory();
+            loadGroupHistory();
+            renderGroupList();
+            msgInput.focus();
+        }
+
+        async function loadGroupHistory() {
+            if (!activeGroup || !me) return;
+            const before = messages.length > 0 ? messages[0].msg_id : null;
+            let url = `/api/group/history?token=${encodeURIComponent(me.token)}&group_id=${activeGroup}&limit=${PAGE_SIZE}`;
+            if (before) url += `&before=${before}`;
+            const d = await api(url);
+            if (d.code !== 200 || !d.data) { loadMore.textContent = 'No messages'; return; }
+            const items = d.data;
+            if (items.length === 0) { loadMore.textContent = 'No messages'; loadMore.style.cursor = 'default'; return; }
+            if (items.length < PAGE_SIZE) { loadMore.textContent = 'All loaded'; loadMore.style.cursor = 'default'; }
+            else { loadMore.textContent = 'Load earlier'; loadMore.style.cursor = 'pointer'; }
+            for (let i = items.length - 1; i >= 0; i--) messages.unshift(items[i]);
+            renderGroupMessages();
+        }
+
+        function renderGroupMessages() {
+            msgList.innerHTML = '';
+            msgList.appendChild(loadMore);
+            for (const m of messages) appendGroupMsg(m);
+            msgList.scrollTop = msgList.scrollHeight;
+        }
+
+        function appendGroupMsg(m) {
+            const isMine = m.from_uid === me.uid;
+            const name = m.from_name || m.from_uid.substring(0, 8);
+            const time = new Date(Number(m.send_time)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const div = document.createElement('div');
+            div.className = 'msg-row' + (isMine ? ' mine' : '');
+            div.innerHTML = `<div class="m-avatar">${name[0].toUpperCase()}</div>
+        <div><div class="msg-bubble">${isMine ? '' : '<b>' + escHtml(name) + '</b><br>'}${escHtml(m.content)}</div><div class="msg-time">${time}</div></div>`;
+            msgList.appendChild(div);
+            msgList.scrollTop = msgList.scrollHeight;
+        }
+
+        // ===== Modal =====
+
+        function openModal(type) {
+            $('modalOverlay').classList.add('show');
+            $('groupErr').textContent = '';
+            $('joinGroupErr').textContent = '';
+            if (type === 'create') {
+                $('modalCreateGroup').style.display = 'block';
+                $('modalJoinGroup').style.display = 'none';
+                $('groupName').focus();
+            } else {
+                $('modalCreateGroup').style.display = 'none';
+                $('modalJoinGroup').style.display = 'block';
+                $('joinGroupId').focus();
+            }
+        }
+
+        function closeModal() {
+            $('modalOverlay').classList.remove('show');
+        }
+
+        async function doCreateGroup() {
+            const name = $('groupName').value.trim();
+            if (!name) { $('groupErr').textContent = 'Enter a group name'; return; }
+            const d = await api('/api/group/create', {
+                method: 'POST',
+                body: JSON.stringify({ token: me.token, name })
+            });
+            if (d.code !== 200) { $('groupErr').textContent = d.msg; return; }
+            closeModal();
+            $('groupName').value = '';
+            loadGroupList();
+        }
+
+        async function doJoinGroup() {
+            const groupId = $('joinGroupId').value.trim();
+            if (!groupId) { $('joinGroupErr').textContent = 'Enter a group ID'; return; }
+            const d = await api('/api/group/join', {
+                method: 'POST',
+                body: JSON.stringify({ token: me.token, group_id: groupId })
+            });
+            if (d.code !== 200) { $('joinGroupErr').textContent = d.msg; return; }
+            closeModal();
+            $('joinGroupId').value = '';
+            loadGroupList();
+        }
+
+        // ===== Modal =====
+
+        function openModal(type) {
+            $('modalOverlay').classList.add('show');
+            $('groupErr').textContent = '';
+            $('joinGroupErr').textContent = '';
+            if (type === 'create') {
+                $('modalCreateGroup').style.display = 'block';
+                $('modalJoinGroup').style.display = 'none';
+                $('groupName').focus();
+            } else {
+                $('modalCreateGroup').style.display = 'none';
+                $('modalJoinGroup').style.display = 'block';
+                $('joinGroupId').focus();
+            }
+        }
+
+        function closeModal() {
+            $('modalOverlay').classList.remove('show');
+        }
+
+        async function doCreateGroup() {
+            const name = $('groupName').value.trim();
+            if (!name) { $('groupErr').textContent = 'Enter a group name'; return; }
+            const d = await api('/api/group/create', {
+                method: 'POST',
+                body: JSON.stringify({ token: me.token, name })
+            });
+            if (d.code !== 200) { $('groupErr').textContent = d.msg; return; }
+            closeModal();
+            $('groupName').value = '';
+            loadGroupList();
+        }
+
+        async function doJoinGroup() {
+            const groupId = $('joinGroupId').value.trim();
+            if (!groupId) { $('joinGroupErr').textContent = 'Enter a group ID'; return; }
+            const d = await api('/api/group/join', {
+                method: 'POST',
+                body: JSON.stringify({ token: me.token, group_id: groupId })
+            });
+            if (d.code !== 200) { $('joinGroupErr').textContent = d.msg; return; }
+            closeModal();
+            $('joinGroupId').value = '';
+            loadGroupList();
+        }
+
         // ===== Conversations =====
         async function loadConversations() {
             const d = await api(`/api/conversations?token=${encodeURIComponent(me.token)}`);
@@ -1042,7 +1330,8 @@
         // ===== Chat =====
         function openChat(peerUid, peerName) {
             activePeer = peerUid;
-            if (!peers[peerUid]) peers[peerUid] = { username: peerName || peerUid.substring(0, 8) };
+            activeGroup = null;
+            loadMore.onclick = () => loadHistory();
             // Clear unread and notify server
             if (unreadCounts[peerUid]) {
                 delete unreadCounts[peerUid];
@@ -1067,6 +1356,7 @@
 
         function closeChat() {
             activePeer = null;
+            activeGroup = null;
             clearTimeout(typingTimeout);
             $('typingHint').style.display = 'none';
             document.body.classList.remove('chat-open');
@@ -1074,7 +1364,8 @@
             noChat.style.display = 'flex';
             chatArea.style.display = 'none';
             messages = [];
-            renderConvList();
+            loadMore.onclick = () => loadHistory();
+            if (activeTab === 'groups') renderGroupList(); else renderConvList();
         }
 
         async function loadHistory() {
@@ -1119,15 +1410,24 @@
         }
 
         function sendMessage() {
-            if (!ws || ws.readyState !== 1 || !activePeer) return;
+            if (!ws || ws.readyState !== 1) return;
             const content = msgInput.value.trim();
             if (!content) return;
-            const seq = Date.now();
-            const cid = crypto.randomUUID();
-            const msg = { msg_id: seq, from_uid: me.uid, to_uid: activePeer, content, msg_type: 1, send_time: Date.now() };
-            const el = appendMsg(msg, '<span class="pending">◷ Sending...</span>');
-            pendingMsgs[seq] = { el, msg };
-            ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: activePeer, content, msg_type: 1, client_msg_id: cid } }));
+
+            if (activeGroup) {
+                // Group chat
+                const cid = crypto.randomUUID();
+                ws.send(JSON.stringify({ cmd: 'group_chat', seq: Date.now(), data: { group_id: activeGroup, content, msg_type: 1, client_msg_id: cid } }));
+                appendGroupMsg({ msg_id: Date.now(), group_id: activeGroup, from_uid: me.uid, from_name: me.username, content, msg_type: 1, send_time: Date.now() });
+            } else if (activePeer) {
+                // Private chat
+                const seq = Date.now();
+                const cid = crypto.randomUUID();
+                const msg = { msg_id: seq, from_uid: me.uid, to_uid: activePeer, content, msg_type: 1, send_time: Date.now() };
+                const el = appendMsg(msg, '<span class="pending">◷ Sending...</span>');
+                pendingMsgs[seq] = { el, msg };
+                ws.send(JSON.stringify({ cmd: 'private_chat', seq, data: { to_uid: activePeer, content, msg_type: 1, client_msg_id: cid } }));
+            }
             msgInput.value = '';
             msgInput.style.height = 'auto';
             msgInput.focus();

@@ -5,15 +5,15 @@ use uuid::Uuid;
 
 use crate::config::Config;
 
-// JWT 载荷
+// JWT claims payload
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub user_id: Uuid, // 用户ID
-    pub exp: i64,      // 过期时间
-    pub iat: i64,      // 签发时间
+    pub user_id: Uuid, // User ID
+    pub exp: i64,      // Expiration time
+    pub iat: i64,      // Issued at time
 }
 
-// 签发Token
+// Create token
 pub fn create_token(user_id: Uuid, config: &Config) -> anyhow::Result<String> {
     let now = Utc::now();
     let exp = (now + Duration::seconds(config.jwt_expire)).timestamp();

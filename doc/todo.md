@@ -115,3 +115,108 @@
   - 移动端响应式布局（≤700px 切换全屏模式 + 返回按钮）
   - CSS 变量集中管理主题色，方便换肤和后续扩展
 - [x] `debug.html` — 调试面板移至 `GET /debug`
+
+---
+
+# 群聊 + 移动端 UI 重构 TODO
+
+## Phase 1: Database & Model
+
+### 14. 群聊数据库表 ✅
+
+- [x] `im_groups(id UUID, name, owner_uid, created_at)`
+- [x] `im_group_members(group_id, user_id, joined_at)` — 联合主键
+- [x] `im_group_messages(id BIGSERIAL, group_id, from_uid, content, msg_type, client_msg_id?, created_at)`
+
+### 15. 群聊 Model ✅
+
+- [x] `GroupChatReq` / `GroupChatAck` / `GroupPushMsg` — 修复 `from_uid`/`group_id` 为 Uuid
+- [x] `CreateGroupReq { token, name }` / `GroupActionReq { token, group_id }`
+- [x] `GroupInfo` / `GroupMember` / `GroupHistoryItem`
+- [x] `GroupQuery` / `GroupHistoryQuery` — 查询参数
+
+### 16. 群聊 DAO（9 个函数） ✅
+
+- [x] `create_group` — INSERT im_groups + im_group_members
+- [x] `join_group` / `leave_group`
+- [x] `list_my_groups` — JOIN + GROUP BY
+- [x] `list_group_members` — JOIN im_users
+- [x] `get_group_history` — 游标分页
+- [x] `save_group_message` — 去重（ON CONFLICT client_msg_id）
+- [x] `is_group_member` — 权限校验
+- [x] `get_group_member_uids` — 推送时获取在线成员
+
+---
+
+## Phase 2: API Endpoints
+
+### 17. REST 接口 ✅
+
+- [x] `POST /api/group/create` — 创建群，自动加入 owner
+- [x] `POST /api/group/join` — 加入群
+- [x] `POST /api/group/leave` — 退出群
+- [x] `GET /api/group/list?token=` — 我的群列表
+- [x] `GET /api/group/members?token=&group_id=` — 群成员列表
+- [x] `GET /api/group/history?token=&group_id=&before=&limit=` — 群消息历史
+
+---
+
+## Phase 3: WebSocket
+
+### 18. group_chat 命令 ✅
+
+- [x] 校验发送者是群成员
+- [x] `save_group_message` → msg_id
+- [x] 给所有在线成员（除自己）推送 `GroupPushMsg`
+- [x] ACK 发送方 `GroupChatAck { msg_id, send_time, online_count }`
+
+---
+
+## Phase 4: UI — Desktop Tab Navigation
+
+### 19. 会话列表 Tab 切换 ✅
+
+- [x] 侧边栏顶部 `💬 Chats | 👥 Groups` Tab 按钮
+- [x] JS `activeTab` 状态，点击切换筛选
+- [x] Groups 列表数据来自 `GET /api/group/list`
+
+---
+
+## Phase 5: UI — Group Chat View
+
+### 20. 群聊界面 ✅
+
+- [x] 打开群聊 → 加载群消息历史（`GET /api/group/history`）
+- [x] 发送消息 → WS `group_chat` 命令
+- [x] 接收推送 → `GroupPushMsg` 解析显示（每条消息前显示发送者名+头像）
+- [x] 消息去重使用 `client_msg_id`
+
+---
+
+## Phase 6: UI — Group Management
+
+### 21. 群管理 ✅
+
+- [x] Groups 列表顶部 "+ Create Group" / "Join Group" 按钮
+- [x] 创建群弹窗：输入群名 → POST /api/group/create → 刷新列表
+- [x] 加入群弹窗：输入群 UUID → POST /api/group/join → 刷新列表
+- [x] 弹窗点击背景关闭
+
+---
+
+## Phase 7: UI — Mobile Bottom Nav
+
+### 22. 移动端底部导航 ✅
+
+- [x] 固定底部条：`💬 Chats | 👥 Groups | 👤 Me`
+- [x] `Me` 页面：头像、用户名、UID、Logout 按钮
+- [x] CSS `safe-area-inset-bottom` 适配刘海屏
+
+---
+
+## 剩余
+
+### 21. 群管理对话框
+
+- [ ] "+" 按钮 → 创建/加入群弹窗
+- [ ] 群信息面板：名称 + 成员列表 + 退出按钮

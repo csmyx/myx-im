@@ -1,0 +1,344 @@
+# myx-im Architecture & Schema
+
+## ER Diagram
+
+```mermaid
+erDiagram
+    im_users {
+        uuid id PK
+        varchar username UK
+        text password_hash
+        timestamptz created_at
+    }
+
+    im_chat_messages {
+        bigint id PK
+        uuid from_uid FK
+        uuid to_uid FK
+        text content
+        smallint msg_type
+        boolean delivered
+        text client_msg_id UK
+        timestamptz created_at
+    }
+
+    im_read_cursors {
+        uuid user_id PK_FK
+        uuid peer_uid PK_FK
+        bigint last_read_msg_id
+    }
+
+    im_groups {
+        uuid id PK
+        varchar name
+        uuid owner_uid FK
+        timestamptz created_at
+    }
+
+    im_group_members {
+        uuid group_id PK_FK
+        uuid user_id PK_FK
+        timestamptz joined_at
+    }
+
+    im_group_messages {
+        bigint id PK
+        uuid group_id FK
+        uuid from_uid FK
+        text content
+        smallint msg_type
+        text client_msg_id UK
+        timestamptz created_at
+    }
+
+    im_users ||--o{ im_chat_messages : "from_uid"
+    im_users ||--o{ im_chat_messages : "to_uid"
+    im_users ||--o{ im_read_cursors : "user_id"
+    im_users ||--o{ im_read_cursors : "peer_uid"
+    im_users ||--o{ im_groups : "owner"
+    im_users ||--o{ im_group_members : "member"
+    im_users ||--o{ im_group_messages : "from_uid"
+    im_groups ||--o{ im_group_members : "members"
+    im_groups ||--o{ im_group_messages : "messages"
+```
+
+---
+
+## Private Chat — Full Flow
+
+```mermaid
+sequenceDiagram
+    actor Alice
+    actor Bob
+    participant Server
+    participant DB
+
+    Note over Alice, Server: === Registration ===
+    Alice->>Server: POST /api/user/register {username, password}
+    Server->>DB: INSERT im_users (bcrypt hash)
+    Server-->>Alice: 200 {token}
+
+    Bob->>Server: POST /api/user/register
+    Server->>DB: INSERT im_users
+    Server-->>Bob: 200 {token}
+
+    Note over Alice, Server: === Login & WS Connect ===
+    Alice->>Server: GET /im/ws?token=<jwt>
+    Server->>Server: verify JWT
+    Server->>DB: SELECT undelivered messages
+    Server-->>Alice: Push offline messages (delivered=FALSE)
+    Server-->>Alice: WS connected (online_users map)
+
+    Bob->>Server: GET /im/ws?token=<jwt>
+    Server-->>Bob: WS connected
+
+    Note over Alice, Bob: === Alice sends message to Bob (Bob online) ===
+    Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"hello"}}
+    Server->>DB: INSERT im_chat_messages (delivered=FALSE)
+    DB-->>Server: msg_id=42
+    Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello", send_time}
+    Server-->>Alice: ACK {cmd:"private_chat_ack", data:{msg_id:42, delivered:true}}
+    Bob->>Bob: Show "hello" + unread badge if not in chat
+
+    Note over Alice, Bob: === Bob opens Alice's chat ===
+    Bob->>Server: WS {cmd:"mark_delivered", data:{peer_uid:Alice}}
+    Server->>DB: UPDATE delivered=TRUE WHERE to_uid=Bob AND from_uid=Alice
+    Server->>DB: UPSERT im_read_cursors (last_read_msg_id=42)
+    Server->>Alice: Push read_receipt {peer_uid:Bob, last_read_msg_id:42}
+    Alice->>Alice: ✓ Read
+
+    Note over Alice, Bob: === Alice sends to offline Bob ===
+    Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"hi"}}
+    Server->>DB: INSERT (delivered=FALSE)
+    DB-->>Server: msg_id=43
+    Server-->>Alice: ACK {msg_id:43, delivered:false}
+    Alice->>Alice: ◷ Sent (offline)
+
+    Note over Bob: Bob reconnects later
+    Bob->>Server: GET /im/ws?token=<jwt>
+    Server->>DB: SELECT undelivered WHERE to_uid=Bob
+    Server-->>Bob: Push [msg_id=43, from_uid=Alice, content:"hi"]
+    Bob->>Bob: Show "hi" + unread badge 🔴1
+
+    Bob->>Server: WS {cmd:"mark_delivered", data:{peer_uid:Alice}}
+    Server->>DB: UPDATE delivered=TRUE
+    Server->>Alice: Push delivery_update {msg_ids:[43]}
+    Alice->>Alice: ◷ Sent (offline) → ✓ Delivered
+    Server->>Alice: Push read_receipt {last_read_msg_id:43}
+    Alice->>Alice: ✓ Read
+```
+
+---
+
+## Group Chat — Send & Push
+
+```mermaid
+sequenceDiagram
+    actor Alice
+    actor Bob
+    actor Carol
+    participant Server
+    participant DB
+
+    Note over Alice, Carol: Alice, Bob, Carol in group "Dev Team"
+    Alice->>Server: WS {cmd:"group_chat", data:{group_id:..., content:"@all deploy done"}}
+    Server->>DB: is_group_member(Alice) → true
+    Server->>DB: INSERT im_group_messages
+    DB-->>Server: msg_id=100
+    Server-->>Alice: ACK {cmd:"group_chat_ack", data:{msg_id:100, online_count:2}}
+    Server->>Bob: Push GroupPushMsg {group_id, from_uid:Alice, from_name:"Alice", content}
+    Server->>Carol: Push GroupPushMsg (same)
+    Bob->>Bob: Show "Alice: @all deploy done"
+    Carol->>Carol: Show "Alice: @all deploy done"
+```
+
+---
+
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph Client
+        Browser["Browser<br/>chat.html"]
+        WS["WebSocket<br/>/im/ws"]
+    end
+
+    subgraph "myx-im Server (axum)"
+        Router["Router<br/>GET / | POST /api/* | WS"]
+        Handlers["Handlers<br/>auth, message, group"]
+        State["AppState<br/>PgPool + online_users map"]
+    end
+
+    subgraph Database
+        PG[("PostgreSQL<br/>im_users, im_chat_messages<br/>im_groups, im_group_messages<br/>im_read_cursors")]
+    end
+
+    Browser -->|HTTP| Router
+    Browser -->|WebSocket| WS
+    Router --> Handlers
+    Handlers --> State
+    State --> PG
+    WS --> Handlers
+```
+
+---
+
+## Key Design Decisions
+
+| Decision                                    | Rationale                                       |
+| ------------------------------------------- | ----------------------------------------------- |
+| Private & group messages in separate tables | Cleaner queries, different delivery semantics   |
+| `delivered` flag on messages                | Offline sync without extra table                |
+| `client_msg_id` UNIQUE                      | Dedup at DB level (ON CONFLICT DO NOTHING)      |
+| Composite PK on `im_read_cursors`           | One cursor per (user, peer) pair                |
+| `ON DELETE CASCADE` on group children       | Auto-cleanup when group deleted                 |
+| UUID everywhere                             | No collision risk, client-side generation       |
+| `include_str!("../chat.html")`              | Single binary deployment, no static file server |
+
+---
+
+## UI Layout — Desktop
+
+```mermaid
+graph TB
+    subgraph App["#app (flex row, height: 100dvh)"]
+        direction LR
+        subgraph Sidebar["#sidebar (30%%, min 220px, max 380px)"]
+            direction TB
+            Header[".sidebar-header<br/>avatar + username + logout"]
+            Search[".search-wrap<br/>user search input + dropdown"]
+            Tabs[".tab-bar<br/>💬 Chats | 👥 Groups"]
+            ConvList[".conv-list<br/>flex:1 overflow-y:auto<br/>conversation items"]
+        end
+        subgraph Main["#main (flex:1, column)"]
+            direction TB
+            ChatArea["#chatArea (flex:1, column)"]
+            NoChat["#noChat - 'Select a conversation'"]
+            ChatHeader[".chat-header<br/>back button + avatar + name + status"]
+            MsgList[".msg-list<br/>flex:1 overflow-y:auto<br/>message bubbles + load-more"]
+            TypingHint[".typing-indicator<br/>'Alice is typing...'"]
+            InputBar[".input-bar<br/>textarea + Send button"]
+            BottomNav[".bottom-nav<br/>💬 Chats | 👥 Groups | 👤 Me<br/>(mobile only)"]
+        end
+    end
+
+    Header --> Search
+    Search --> Tabs
+    Tabs --> ConvList
+    ChatHeader --> MsgList
+    MsgList --> TypingHint
+    TypingHint --> InputBar
+    ChatArea --> ChatHeader
+    ChatArea --> MsgList
+    ChatArea --> TypingHint
+    ChatArea --> InputBar
+```
+
+---
+
+## UI States — View Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> AuthScreen
+
+    state AuthScreen {
+        LoginForm: Register / Login
+    }
+
+    state ChatInterface {
+        state Sidebar {
+            ChatsTab: 💬 Chats tab
+            GroupsTab: 👥 Groups tab
+        }
+        state MainPanel {
+            SelectPrompt: "Select a conversation"
+            PrivateChat: Private chat view
+            GroupChat: Group chat view
+        }
+    }
+
+    AuthScreen --> ChatInterface: login success + WS connect
+    SelectPrompt --> PrivateChat: tap conversation / search result
+    SelectPrompt --> GroupChat: tap group
+    PrivateChat --> SelectPrompt: close / back
+    GroupChat --> SelectPrompt: close / back
+    ChatsTab --> GroupsTab: tap 👥 Groups
+    GroupsTab --> ChatsTab: tap 💬 Chats
+```
+
+---
+
+## UI Components — Message Row
+
+```mermaid
+graph LR
+    subgraph "My message (.msg-row.mine)"
+        direction LR
+        MAvatar[".m-avatar<br/>initial"]
+        subgraph MRight[" "]
+            MBubble[".msg-bubble<br/>bg=primary, white text"]
+            MTime[".msg-time<br/>HH:MM"]
+            MStatus[".msg-status<br/>✓Delivered / ◷Offline / ◷Sending"]
+        end
+        MAvatar --> MBubble
+        MBubble --> MTime
+        MTime --> MStatus
+    end
+
+    subgraph "Their message (.msg-row)"
+        direction LR
+        TAvatar[".m-avatar<br/>initial"]
+        subgraph TRight[" "]
+            TName["sender name<br/>(group only)"]
+            TBubble[".msg-bubble<br/>bg=surface2"]
+            TTime[".msg-time"]
+        end
+        TAvatar --> TName
+        TName --> TBubble
+        TBubble --> TTime
+    end
+```
+
+---
+
+## JS State Machine
+
+```mermaid
+graph TB
+    subgraph State["Global State"]
+        me["me: {uid, username, token}"]
+        ws["ws: WebSocket | null"]
+        activePeer["activePeer: Uuid | null"]
+        activeGroup["activeGroup: Uuid | null"]
+        activeTab["activeTab: 'chats' | 'groups'"]
+        peers["peers: {uid → {username}}"]
+        convCache["convCache: ConversationItem[]"]
+        groupCache["groupCache: GroupInfo[]"]
+        unreadCounts["unreadCounts: {peer_uid → number}"]
+        pendingMsgs["pendingMsgs: {seq → {el, msg}}"]
+        msgById["msgById: {msg_id → DOM element}"]
+    end
+
+    subgraph WS_Events["WebSocket Events"]
+        onopen["onopen → loadConversations()"]
+        onmessage["onmessage → dispatch"]
+        onclose["onclose → ws=null"]
+    end
+
+    subgraph Dispatch["onmessage dispatch"]
+        Push["PrivatePushMsg<br/>→ handlePush()"]
+        GroupPush["GroupPushMsg<br/>→ handleGroupPush()"]
+        Ack["private_chat_ack<br/>→ handleAck()"]
+        Delivery["delivery_update<br/>→ handleDeliveryUpdate()"]
+        ReadRec["read_receipt<br/>→ handleReadReceipt()"]
+        Typing["typing<br/>→ handleTyping()"]
+    end
+
+    onmessage --> Push
+    onmessage --> GroupPush
+    onmessage --> Ack
+    onmessage --> Delivery
+    onmessage --> ReadRec
+    onmessage --> Typing
+```

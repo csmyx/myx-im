@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO im_group_messages (group_id, from_uid, content, msg_type, client_msg_id)\n               VALUES ($1, $2, $3, $4, $5)\n               ON CONFLICT (client_msg_id) DO NOTHING\n               RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e60e3ea5d8ac0f4f19d7fcbaf848db8449e458c3b6c83471a2a8396a76a16d86"
+}
