@@ -29,6 +29,32 @@
 
 **Files changed**: `src/service.rs`, `src/router.rs`, `tests/integration_test.rs`
 
+### 3. Messages never marked as seen during active chat (2026-05-24)
+
+**Symptom**: When Bob was viewing Alice's chat and received new messages via WS push,
+the messages stayed `seen=FALSE` in the DB. Alice never saw ✓ Read unless Bob
+closed and reopened the chat. The `mark_delivered` WS command was the old
+mechanism but was removed during the `delivered→seen` refactor.
+
+**Root cause**: Seen-marking only happened in `GET /api/message/history` (open chat),
+which doesn't fire during an active chat session. The subsequent attempt to fix
+this by marking seen on `private_chat` (reply) was too aggressive — it marked
+messages as seen even when Bob wasn't viewing Alice's chat.
+
+**Fix**:
+- Removed `mark_seen_from_peer` from `private_chat` handler (replying ≠ viewing)
+- Added lightweight `mark_seen` WS command in `handle_biz_msg`
+- Frontend `handlePush()` sends `mark_seen` when `activePeer === from_uid` and
+  `currentPage === 'chat'` — only when actually viewing the chat
+- Merged `get_unseen_ids_from_peer` + `mark_messages_seen` into single
+  `mark_seen_from_peer(pool, from_uid, to_uid) → Vec<i64>` (UPDATE RETURNING id)
+- Added `seen: bool` to `ChatHistoryItem` for frontend to display read/unread in history
+- Frontend shows three states: ◷ Sending → ◷ Sent → ✓ Read (every message has a mark)
+- Column renamed `delivered` → `seen` in DB, DAO, and docs
+
+**Files changed**: `src/dao.rs`, `src/router.rs`, `src/model.rs`, `chat.html`,
+`init.sql`, `doc/schema.md`, `doc/api.md`
+
 ---
 
 ## Frontend

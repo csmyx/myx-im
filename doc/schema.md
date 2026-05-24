@@ -133,12 +133,11 @@ sequenceDiagram
 ## Private Chat — Full Flow (v2 — seen-marking in history endpoint)
 
 > **Change from v1:** The `mark_delivered` WS command is removed. Instead, seen-marking
-> happens in two places via a single `mark_seen_from_peer` (UPDATE RETURNING id):
-> 1. When the receiver fetches chat history via `GET /api/message/history` (open chat).
-> 2. When the receiver sends a reply via `private_chat` (replying implies reading).
-> In both cases, the backend marks unseen messages `seen=TRUE` and pushes a
-> `delivery_update` to the sender. Column renamed `delivered` → `seen`.
-> Frontend shows only two states: ◷ Sending → ✓ Read.
+> happens in two places via `mark_seen_from_peer` (UPDATE RETURNING id):
+> 1. Open chat → `GET /api/message/history` marks unseen and pushes `delivery_update`.
+> 2. Receive push while viewing chat → frontend sends `mark_seen` WS command.
+> Only when the user is actually in the peer's chat interface. Column renamed
+> `delivered` → `seen`. Frontend shows three states: ◷ Sending → ◷ Sent → ✓ Read.
 
 ```mermaid
 sequenceDiagram
@@ -166,22 +165,24 @@ sequenceDiagram
     Bob->>Server: GET /im/ws?token=<jwt>
     Server-->>Bob: WS connected
 
-    Note over Alice, Bob: === Alice sends message to Bob (Bob online) ===
+    Note over Alice, Bob: === Alice sends to Bob, Bob IS viewing Alice's chat ===
     Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"hello"}}
     Server->>DB: INSERT im_chat_messages (seen=FALSE)
     DB-->>Server: msg_id=42
-    Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello", send_time}
-    Server-->>Alice: ACK {cmd:"private_chat_ack", data:{msg_id:42, delivered:true}}
+    Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello"}
+    Server-->>Alice: ACK {msg_id:42, delivered:true}
     Alice->>Alice: ✓ Read
     Bob->>Bob: Show "hello"
+    Bob->>Server: WS {cmd:"mark_seen", data:{to_uid:Alice}}
+    Server->>DB: UPDATE seen=TRUE RETURNING id<br/>(mark_seen_from_peer)
+    Server->>Alice: Push delivery_update {msg_ids:[42], to_uid:Bob}
 
     Note over Alice, Bob: === Bob opens Alice's chat (loads history) ===
     Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
     Server->>DB: UPDATE seen=TRUE RETURNING id<br/>(mark_seen_from_peer)
     Server->>DB: SELECT chat history (ORDER BY id DESC LIMIT 50)
     Server-->>Bob: 200 {history items}
-    Server->>Alice: Push delivery_update {msg_ids:[42], to_uid:Bob}
-    Alice->>Alice: ✓ Read
+    Server->>Alice: Push delivery_update {msg_ids:[...], to_uid:Bob}
 
     Note over Alice, Bob: === Bob replies (marks Alice's messages as seen) ===
     Bob->>Server: WS {cmd:"private_chat", data:{to_uid:Alice, content:"hi back"}}
