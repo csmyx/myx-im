@@ -108,6 +108,8 @@ pub struct PrivateChatReq {
     pub extra: Option<String>,
     /// Client-generated unique ID for idempotency (ON CONFLICT DO NOTHING)
     pub client_msg_id: Option<String>,
+    /// Sender's username (provided by frontend to avoid a DB lookup on the server)
+    pub from_name: Option<String>,
 }
 
 /// Private chat downstream push (server → recipient via WS)
@@ -152,6 +154,8 @@ pub struct GroupChatReq {
     pub msg_type: u8,
     /// Client-generated unique ID for idempotency
     pub client_msg_id: Option<String>,
+    /// Sender's username (provided by frontend to avoid a DB lookup on the server)
+    pub from_name: Option<String>,
 }
 
 /// Group chat send confirmation (server → sender via WS)

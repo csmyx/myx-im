@@ -1575,7 +1575,7 @@
                 JSON.stringify({
                     cmd: "private_chat",
                     seq,
-                    data: { to_uid: activePeer, content: c, msg_type: 1, client_msg_id: cid },
+                    data: { to_uid: activePeer, content: c, msg_type: 1, client_msg_id: cid, from_name: me.username },
                 }),
             );
             $("msgInput").value = "";
@@ -1698,6 +1698,7 @@
                         content: c,
                         msg_type: 1,
                         client_msg_id: cid,
+                        from_name: me.username,
                     },
                 }),
             );

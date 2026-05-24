@@ -259,14 +259,8 @@ async fn handle_biz_msg(
             .await
             {
                 Ok(msg_id) => {
-                    // Look up sender username for the push
-                    let from_name: String = sqlx::query_scalar!(
-                        "SELECT username FROM im_users WHERE id = $1",
-                        uid as Uuid,
-                    )
-                    .fetch_one(&state.pg_pool)
-                    .await
-                    .unwrap_or_default();
+                    // Use from_name from request (frontend provides it, avoids DB lookup)
+                    let from_name = req.from_name.unwrap_or_default();
 
                     // Push to recipient first to know delivery status
                     let push = PrivatePushMsg {
@@ -371,10 +365,13 @@ async fn handle_biz_msg(
                     // Push to online group members (except sender)
                     match dao::get_group_member_uids(&state.pg_pool, req.group_id).await {
                         Ok(members) => {
+                            // Use from_name from request (frontend provides it, avoids DB lookup)
+                            let from_name = req.from_name.unwrap_or_default();
+
                             let push = GroupPushMsg {
                                 group_id: req.group_id,
                                 from_uid: uid,
-                                from_name: String::new(),
+                                from_name,
                                 content: req.content.clone(),
                                 msg_type: req.msg_type,
                                 send_time,
