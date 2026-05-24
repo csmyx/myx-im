@@ -283,6 +283,22 @@ pub async fn list_friends(
 // ===== Group DAO =====
 
 pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow::Result<GroupInfo> {
+    // Check: same owner cannot create duplicate group name
+    let existing = sqlx::query!(
+        "SELECT id FROM im_groups WHERE owner_uid = $1 AND name = $2",
+        owner_uid,
+        name,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("create_group duplicate check failed: {e}");
+        e
+    })?;
+    if existing.is_some() {
+        return Err(anyhow::anyhow!("group name already exists for this owner"));
+    }
+
     let group_id = Uuid::new_v4();
     sqlx::query!(
         "INSERT INTO im_groups (id, name, owner_uid) VALUES ($1, $2, $3)",
@@ -309,10 +325,17 @@ pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow:
         e
     })?;
 
+    // Lookup owner's username
+    let owner_name = sqlx::query_scalar!("SELECT username FROM im_users WHERE id = $1", owner_uid)
+        .fetch_one(pool)
+        .await
+        .unwrap_or_default();
+
     Ok(GroupInfo {
         group_id,
         name: name.to_owned(),
         owner_uid,
+        owner_name: Some(owner_name),
         member_count: 1,
         created_at: None,
     })
@@ -352,12 +375,14 @@ pub async fn list_my_groups(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Vec<
     let rows = sqlx::query_as!(
         GroupInfo,
         r#"SELECT g.id AS group_id, g.name, g.owner_uid,
+                  o.username AS owner_name,
                   COUNT(m.user_id)::bigint AS "member_count!",
                   g.created_at
            FROM im_groups g
+           JOIN im_users o ON o.id = g.owner_uid
            JOIN im_group_members m ON m.group_id = g.id
            WHERE g.id IN (SELECT group_id FROM im_group_members WHERE user_id = $1)
-           GROUP BY g.id
+           GROUP BY g.id, o.username
            ORDER BY g.created_at DESC"#,
         user_id,
     )
@@ -367,6 +392,38 @@ pub async fn list_my_groups(pool: &PgPool, user_id: Uuid) -> anyhow::Result<Vec<
         tracing::error!("list_my_groups failed: {e}");
         e
     })?;
+    Ok(rows)
+}
+
+pub async fn search_groups(
+    pool: &PgPool,
+    keyword: &str,
+    limit: i64,
+) -> anyhow::Result<Vec<GroupInfo>> {
+    let pattern = format!("%{}%", keyword);
+    let rows = sqlx::query_as!(
+        GroupInfo,
+        r#"SELECT g.id AS group_id, g.name, g.owner_uid,
+                  o.username AS owner_name,
+                  COUNT(m.user_id)::bigint AS "member_count!",
+                  g.created_at
+           FROM im_groups g
+           JOIN im_users o ON o.id = g.owner_uid
+           LEFT JOIN im_group_members m ON m.group_id = g.id
+           WHERE g.name ILIKE $1
+           GROUP BY g.id, o.username
+           ORDER BY g.created_at DESC
+           LIMIT $2"#,
+        pattern,
+        limit,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("search_groups failed: {e}");
+        e
+    })?;
+
     Ok(rows)
 }
 

@@ -195,6 +195,8 @@ pub struct GroupInfo {
     pub group_id: Uuid,
     pub name: String,
     pub owner_uid: Uuid,
+    /// Owner's username (from JOIN in search/list queries)
+    pub owner_name: Option<String>,
     pub member_count: i64,
     pub created_at: Option<OffsetDateTime>,
 }

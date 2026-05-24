@@ -27,7 +27,8 @@ CREATE TABLE im_groups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) NOT NULL,
     owner_uid UUID NOT NULL REFERENCES im_users(id),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (owner_uid, name)
 );
 
 CREATE TABLE im_group_members (

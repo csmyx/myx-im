@@ -42,6 +42,7 @@ pub fn app_router(state: Arc<AppState>) -> Router {
         .route("/api/group/join", post(group_join_handler))
         .route("/api/group/leave", post(group_leave_handler))
         .route("/api/group/list", get(group_list_handler))
+        .route("/api/group/search", get(group_search_handler))
         .route("/api/group/members", get(group_members_handler))
         .route("/api/group/history", get(group_history_handler))
         .route("/api/friend/add", post(friend_add_handler))
@@ -694,6 +695,14 @@ async fn group_create_handler(
     match dao::create_group(&state.pg_pool, req.name.trim(), claims.user_id).await {
         Ok(group) => (StatusCode::OK, Json(Res::success(group, "group created"))).into_response(),
         Err(e) => {
+            let err_msg = format!("{e}");
+            if err_msg.contains("already exists") {
+                return (
+                    StatusCode::CONFLICT,
+                    Json(Res::<GroupInfo>::error(409, "you already have a group with this name")),
+                )
+                    .into_response();
+            }
             tracing::error!("create_group failed: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -793,6 +802,38 @@ async fn group_list_handler(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(Res::<Vec<GroupInfo>>::error(500, "list groups failed")),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn group_search_handler(
+    Query(query): Query<SearchQuery>,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let claims = match verify_token(&query.token, &state.config) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("group search auth failed: {e}");
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(Res::<Vec<GroupInfo>>::error(401, "invalid token")),
+            )
+                .into_response();
+        }
+    };
+
+    let limit = query.limit.unwrap_or(20).min(50);
+    let _ = claims; // JWT verified, not needed for search
+
+    match dao::search_groups(&state.pg_pool, &query.q, limit).await {
+        Ok(groups) => (StatusCode::OK, Json(Res::success(groups, "ok"))).into_response(),
+        Err(e) => {
+            tracing::error!("search_groups failed: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::<Vec<GroupInfo>>::error(500, "search groups failed")),
             )
                 .into_response()
         }

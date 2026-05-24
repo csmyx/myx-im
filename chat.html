@@ -940,11 +940,12 @@
         </div>
         <div class="modal" id="modalJoinGroup" style="display: none">
             <h3>Join Group</h3>
-            <label for="joinGroupId">Group ID</label><input id="joinGroupId" placeholder="Paste group UUID" />
+            <label for="groupSearch">Search by name</label><input id="groupSearch" placeholder="Type group name..."
+                autocomplete="off" oninput="onGroupSearch()" />
             <div class="err" id="joinGroupErr"></div>
+            <div class="search-results" id="groupSearchResults" style="position:static;max-height:150px"></div>
             <div class="btn-row">
-                <button class="btn btn-outline" onclick="closeModal()">Cancel</button><button class="btn btn-primary"
-                    onclick="doJoinGroup()">Join</button>
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -1748,7 +1749,7 @@
             for (const g of groupCache) {
                 const item = tpl("GroupItem");
                 item.querySelector(".li-name").textContent = g.name;
-                item.querySelector(".li-last").textContent = g.member_count + " members";
+                item.querySelector(".li-last").textContent = g.member_count + " members, by " + (g.owner_name || "?");
                 item.onclick = () => openGroupChat(g.group_id, g.name);
                 el.appendChild(item);
             }
@@ -1803,7 +1804,9 @@
             } else {
                 $("modalCreateGroup").style.display = "none";
                 $("modalJoinGroup").style.display = "block";
-                $("joinGroupId").focus();
+                $("groupSearch").focus();
+                $("groupSearch").value = "";
+                $("groupSearchResults").replaceChildren();
             }
         }
         function closeModal() {
@@ -1827,27 +1830,36 @@
             $("groupName").value = "";
             loadGroupList();
         }
-        async function doJoinGroup() {
-            const g = $("joinGroupId").value.trim();
-            if (!g) {
-                $("joinGroupErr").textContent = "Enter a group ID";
-                return;
-            }
-            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(g)) {
-                $("joinGroupErr").textContent = "Invalid UUID format";
-                return;
-            }
-            const d = await api("/api/group/join", {
-                method: "POST",
-                body: JSON.stringify({ token: me.token, group_id: g }),
-            });
-            if (d.code !== 200) {
-                $("joinGroupErr").textContent = d.msg;
-                return;
-            }
-            closeModal();
-            $("joinGroupId").value = "";
-            loadGroupList();
+        let groupSearchTimer;
+        async function onGroupSearch() {
+            clearTimeout(groupSearchTimer);
+            const q = $("groupSearch").value.trim();
+            const el = $("groupSearchResults");
+            const err = $("joinGroupErr");
+            if (!q) { el.replaceChildren(); el.classList.remove("show"); return }
+            groupSearchTimer = setTimeout(async () => {
+                const d = await api("/api/group/search?token=" + encodeURIComponent(me.token) + "&q=" + encodeURIComponent(q) + "&limit=10");
+                if (d.code !== 200 || !d.data) { err.textContent = d.msg || "Search failed"; return }
+                err.textContent = "";
+                el.replaceChildren();
+                for (const g of d.data) {
+                    const item = tpl("SearchItem");
+                    item.querySelector(".sr-avatar").textContent = g.name[0].toUpperCase();
+                    const info = item.querySelector("div:nth-of-type(2)");
+                    info.textContent = g.name + " (" + g.member_count + " members)";
+                    const owner = document.createElement("small");
+                    owner.textContent = " by " + (g.owner_name || "?");
+                    owner.style.color = "var(--text2)";
+                    info.appendChild(owner);
+                    item.onclick = async () => {
+                        const r = await api("/api/group/join", { method: "POST", body: JSON.stringify({ token: me.token, group_id: g.group_id }) });
+                        if (r.code === 200) { closeModal(); loadGroupList() }
+                        else err.textContent = r.msg || "Join failed";
+                    };
+                    el.appendChild(item);
+                }
+                el.classList.add("show");
+            }, 300);
         }
 
         let searchTimer;

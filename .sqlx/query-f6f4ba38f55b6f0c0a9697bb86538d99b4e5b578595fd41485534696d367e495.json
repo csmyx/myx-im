@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT g.id AS group_id, g.name, g.owner_uid,\n                  o.username AS owner_name,\n                  COUNT(m.user_id)::bigint AS \"member_count!\",\n                  g.created_at\n           FROM im_groups g\n           JOIN im_users o ON o.id = g.owner_uid\n           JOIN im_group_members m ON m.group_id = g.id\n           WHERE g.id IN (SELECT group_id FROM im_group_members WHERE user_id = $1)\n           GROUP BY g.id, o.username\n           ORDER BY g.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "group_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "owner_uid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "member_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "f6f4ba38f55b6f0c0a9697bb86538d99b4e5b578595fd41485534696d367e495"
+}
