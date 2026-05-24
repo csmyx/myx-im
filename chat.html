@@ -1080,7 +1080,7 @@
             if (m.data && m.data.delivered) {
                 if (s) { s.innerHTML = '<span class="delivered">\u2713 Read</span>'; saveMsgStatus(m.data.msg_id, 'read') }
             } else {
-                if (s) s.innerHTML = '';
+                if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
                 $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)'
             }
             delete pendingMsgs[m.seq]
@@ -1184,6 +1184,7 @@
                 const sv = getMsgStatus(m.msg_id);
                 if (sv === 'read') s = '<span class="delivered">\u2713 Read</span>'
                 else if (m.seen) s = '<span class="delivered">\u2713 Read</span>'
+                else s = '<span class="undelivered">\u25F7 Sent</span>'
             }
             const div = tpl('MsgRow');
             if (isMine) div.classList.add('mine');
