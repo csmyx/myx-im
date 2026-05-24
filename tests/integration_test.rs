@@ -211,6 +211,11 @@ fn base64_decode(input: &str) -> String {
     String::from_utf8(bytes).unwrap()
 }
 
+/// HTTP helper: GET, return response body as serde_json::Value.
+async fn get_json(client: &reqwest::Client, url: &str) -> serde_json::Value {
+    client.get(url).send().await.unwrap().json().await.unwrap()
+}
+
 /// Regression: messages to a disconnected peer must NOT be marked delivered.
 ///
 /// Bug: when a peer disconnected, the forwarding task's rx stayed alive because
@@ -568,5 +573,270 @@ async fn test_friend_add_self_rejected() {
     .await;
     assert_eq!(r["code"], 400, "adding self should return 400: {r}");
 
+    server_handle.abort();
+}
+
+/// Group join: duplicate join should return 409.
+#[tokio::test]
+async fn test_group_join_duplicate_rejected() {
+    dotenv::dotenv().ok();
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // Register + login two users
+    let alice = serde_json::json!({"username": "test_dup_alice", "password": "alice123"});
+    let bob = serde_json::json!({"username": "test_dup_bob", "password": "bob123"});
+
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &alice).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register alice: {r}");
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &bob).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register bob: {r}");
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &alice).await;
+    assert_eq!(r["code"], 200, "alice login: {r}");
+    let alice_token = r["data"].as_str().unwrap().to_string();
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &bob).await;
+    assert_eq!(r["code"], 200, "bob login: {r}");
+    let bob_token = r["data"].as_str().unwrap().to_string();
+
+    // Alice creates group
+    let group_name = format!("Dup Test {}", Uuid::new_v4());
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/create", addr),
+        &serde_json::json!({"token": alice_token, "name": group_name}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "create group: {r}");
+    let group_id = r["data"]["group_id"].as_str().unwrap();
+
+    // Bob joins first time → OK
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/join", addr),
+        &serde_json::json!({"token": bob_token, "group_id": group_id}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "first join: {r}");
+
+    // Bob joins second time → 409
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/join", addr),
+        &serde_json::json!({"token": bob_token, "group_id": group_id}),
+    )
+    .await;
+    assert_eq!(r["code"], 409, "duplicate join should be 409: {r}");
+
+    server_handle.abort();
+}
+
+/// Group chat full flow: create → search → join → send → receive.
+///
+/// Steps:
+///   1. Register 3 users (Alice, Bob, Carol)
+///   2. Alice creates group "Dev Team"
+///   3. Bob and Carol find group via search and join
+///   4. Verify group appears in all members' lists
+///   5. Verify group members list shows 3 members
+///   6. Alice sends group message via WS
+///   7. Bob and Carol receive the push
+///   8. Verify group history contains the message
+#[tokio::test]
+async fn test_group_create_search_join_chat() {
+    dotenv::dotenv().ok();
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // ---- Register + login 3 users ----
+    let users = [
+        ("test_group_alice", "alice123"),
+        ("test_group_bob", "bob123"),
+        ("test_group_carol", "carol123"),
+    ];
+    let mut tokens = vec![];
+
+    for (name, pass) in &users {
+        let r = post_json(
+            &client,
+            &format!("{}/api/user/register", addr),
+            &serde_json::json!({"username": name, "password": pass}),
+        )
+        .await;
+        assert!(r["code"] == 200 || r["code"] == 409, "register {name}: {r}");
+
+        let r = post_json(
+            &client,
+            &format!("{}/api/user/login", addr),
+            &serde_json::json!({"username": name, "password": pass}),
+        )
+        .await;
+        assert_eq!(r["code"], 200, "login {name}: {r}");
+        let token = r["data"].as_str().unwrap().to_string();
+        tokens.push(token);
+    }
+
+    let alice_token = &tokens[0];
+    let bob_token = &tokens[1];
+    let carol_token = &tokens[2];
+    let group_name = format!("Dev Team {}", Uuid::new_v4());
+
+    // ---- Alice creates group ----
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/create", addr),
+        &serde_json::json!({"token": alice_token, "name": &group_name}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "create group: {r}");
+    let group_id: Uuid = r["data"]["group_id"].as_str().unwrap().parse().unwrap();
+
+    // ---- Bob searches and joins ----
+    let r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/search?token={}&q={}",
+            addr, bob_token, group_name
+        ),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "bob search: {r}");
+    assert!(
+        r["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g["group_id"] == group_id.to_string()),
+        "bob should find the group: {r}"
+    );
+
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/join", addr),
+        &serde_json::json!({"token": bob_token, "group_id": group_id}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "bob join: {r}");
+
+    // ---- Carol searches and joins ----
+    let r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/search?token={}&q={}",
+            addr, carol_token, group_name
+        ),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "carol search: {r}");
+
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/join", addr),
+        &serde_json::json!({"token": carol_token, "group_id": group_id}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "carol join: {r}");
+
+    // ---- Verify all 3 see group in their lists ----
+    for (token, name) in &[
+        (alice_token, "alice"),
+        (bob_token, "bob"),
+        (carol_token, "carol"),
+    ] {
+        let r = get_json(&client, &format!("{}/api/group/list?token={}", addr, token)).await;
+        assert_eq!(r["code"], 200, "{name} group list: {r}");
+        let groups = r["data"].as_array().unwrap();
+        assert!(
+            groups.iter().any(|g| g["group_id"] == group_id.to_string()),
+            "{name} should see the group in their list"
+        );
+    }
+
+    // ---- Verify group has 3 members ----
+    let r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/members?token={}&group_id={}",
+            addr, alice_token, group_id
+        ),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "group members: {r}");
+    let members = r["data"].as_array().unwrap();
+    assert_eq!(members.len(), 3, "should have 3 members: {members:?}");
+
+    // ---- Connect all via WS and send group message ----
+    let mut alice_ws = ws_connect(&addr, alice_token).await;
+    let mut bob_ws = ws_connect(&addr, bob_token).await;
+    let mut carol_ws = ws_connect(&addr, carol_token).await;
+
+    // Alice sends group message
+    let gmsg = serde_json::json!({
+        "cmd": "group_chat",
+        "seq": 1,
+        "data": {
+            "group_id": group_id,
+            "content": "Hello Dev Team!",
+            "msg_type": 1,
+            "from_name": "test_group_alice"
+        }
+    });
+    let ack = ws_send_recv(&mut alice_ws, &gmsg.to_string()).await;
+    let ack_val: serde_json::Value = serde_json::from_str(&ack).unwrap();
+    assert_eq!(ack_val["cmd"], "group_chat_ack", "group ACK: {ack}");
+
+    // Bob receives group push
+    let push = ws_send_recv(&mut bob_ws, r#"{"cmd":"heartbeat","seq":0,"data":{}}"#).await;
+    let push_val: serde_json::Value = serde_json::from_str(&push).unwrap();
+    assert_eq!(push_val["cmd"], "group_push", "bob push: {push}");
+    assert_eq!(push_val["data"]["content"], "Hello Dev Team!");
+    assert_eq!(
+        push_val["data"]["from_name"], "test_group_alice",
+        "from_name should be set: {push}"
+    );
+
+    // Carol receives group push
+    let push = ws_send_recv(&mut carol_ws, r#"{"cmd":"heartbeat","seq":0,"data":{}}"#).await;
+    let push_val: serde_json::Value = serde_json::from_str(&push).unwrap();
+    assert_eq!(push_val["cmd"], "group_push", "carol push: {push}");
+    assert_eq!(push_val["data"]["content"], "Hello Dev Team!");
+
+    // ---- Verify group history ----
+    let r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/history?token={}&group_id={}&limit=10",
+            addr, alice_token, group_id
+        ),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "group history: {r}");
+    let items = r["data"].as_array().unwrap();
+    assert!(!items.is_empty(), "group history should have messages");
+    assert_eq!(items[0]["content"], "Hello Dev Team!");
+
+    // ---- Cleanup ----
+    alice_ws.close(None).await.unwrap();
+    bob_ws.close(None).await.unwrap();
+    carol_ws.close(None).await.unwrap();
     server_handle.abort();
 }

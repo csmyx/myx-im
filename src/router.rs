@@ -696,7 +696,10 @@ async fn group_create_handler(
             if err_msg.contains("already exists") {
                 return (
                     StatusCode::CONFLICT,
-                    Json(Res::<GroupInfo>::error(409, "you already have a group with this name")),
+                    Json(Res::<GroupInfo>::error(
+                        409,
+                        "you already have a group with this name",
+                    )),
                 )
                     .into_response();
             }
@@ -727,9 +730,14 @@ async fn group_join_handler(
     };
 
     match dao::join_group(&state.pg_pool, req.group_id, claims.user_id).await {
-        Ok(()) => (
+        Ok(true) => (
             StatusCode::OK,
             Json(Res::success("".to_string(), "joined group")),
+        )
+            .into_response(),
+        Ok(false) => (
+            StatusCode::CONFLICT,
+            Json(Res::<()>::error(409, "already a member of this group")),
         )
             .into_response(),
         Err(e) => {

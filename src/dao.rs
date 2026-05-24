@@ -350,9 +350,9 @@ pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow:
     })
 }
 
-pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
-    // purpose: add user to group, idempotent (ON CONFLICT DO NOTHING)
-    sqlx::query!(
+pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<bool> {
+    // purpose: add user to group, returns true if newly joined, false if already member
+    let result = sqlx::query!(
         "INSERT INTO im_group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         group_id,
         user_id,
@@ -363,7 +363,7 @@ pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow:
         tracing::error!("join_group failed: {e}");
         e
     })?;
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn leave_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
