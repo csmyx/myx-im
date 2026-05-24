@@ -1308,7 +1308,7 @@
                 activeGroup === d.group_id &&
                 currentPage === "groupChat" &&
                 d.from_uid !== me.uid
-            )
+            ) {
                 appendGroupMsg(
                     {
                         msg_id: Date.now(),
@@ -1321,10 +1321,12 @@
                     },
                     $("gmsgList"),
                 );
-            else if (d.from_uid !== me.uid) {
-                groupUnreadCounts[d.group_id] = (groupUnreadCounts[d.group_id] || 0) + 1;
-                renderGroupList();
+                // Mark group as read since we're viewing it
+                if (ws && ws.readyState === 1)
+                    ws.send(JSON.stringify({ cmd: "mark_group_read", seq: 0, data: { group_id: d.group_id } }));
             }
+            groupUnreadCounts[d.group_id] = (groupUnreadCounts[d.group_id] || 0) + 1;
+            renderGroupList();
         }
 
         function handleAck(m) {
@@ -1368,7 +1370,7 @@
             }
         }
         function handleGroupAck(m) {
-            console.debug('[grpAck] seq=', m.seq, 'msg_id=', m.data && m.data.msg_id);
+            console.log('[grpAck] seq=', m.seq, 'msg_id=', m.data && m.data.msg_id, 'raw=', JSON.stringify(m));
             // Map real DB msg_id to DOM for group messages
             let e = pendingMsgs[m.seq];
             if (!e) {
@@ -1376,25 +1378,25 @@
                     if (Number(k) === Number(m.seq)) { e = pendingMsgs[k]; break }
                 }
             }
-            if (!e) { console.debug('[grpAck] no pending msg for seq=', m.seq); return; }
+            if (!e) { console.log('[grpAck] no pending msg for seq=', m.seq, 'keys=', Object.keys(pendingMsgs)); return; }
             if (m.data && m.data.msg_id) {
                 e.msg.msg_id = m.data.msg_id;
                 msgById[m.data.msg_id] = e.el;
-                console.debug('[grpAck] mapped msg_id=', m.data.msg_id, '->', !!e.el);
+                console.log('[grpAck] mapped msg_id=', m.data.msg_id, '->', !!e.el);
             }
             delete pendingMsgs[m.seq];
         }
         function handleGroupDeliveryUpdate(m) {
-            console.debug('[grpDelUp]', JSON.stringify(m.data));
+            console.log('[grpDelUp]', JSON.stringify(m.data));
             const statuses = m.data && m.data.msg_statuses;
             if (!statuses) return;
             for (const s of statuses) {
                 const el = msgById[s.msg_id];
-                if (!el) { console.debug('[grpDelUp] no DOM for msg_id=', s.msg_id); continue; }
+                if (!el) { console.log('[grpDelUp] no DOM for msg_id=', s.msg_id, 'msgById keys=', Object.keys(msgById).slice(0, 5)); continue; }
                 const st = el.querySelector(".msg-status");
                 if (st) {
                     st.innerHTML = '<span class="delivered">\u2713 Read ' + s.read + '/' + s.total + '</span>';
-                    console.debug('[grpDelUp] updated msg_id=', s.msg_id, '->', s.read, '/', s.total);
+                    console.log('[grpDelUp] updated msg_id=', s.msg_id, '->', s.read, '/', s.total);
                 }
             }
         }
@@ -1759,7 +1761,6 @@
             },
                 el = appendGroupMsg(msg, $("gmsgList"));
             pendingMsgs[seq] = { el, msg };
-            console.debug('[sendGrp] seq=', seq, 'el=', !!el);
             $("gmsgInput").value = "";
             $("gmsgInput").style.height = "auto";
             $("gmsgInput").focus();

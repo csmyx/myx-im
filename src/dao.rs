@@ -567,6 +567,44 @@ pub async fn get_group_read_counts(
         .collect())
 }
 
+/// Get all message IDs in a group sent by OTHER members (not the viewer).
+/// Used by mark_group_read to recompute read counts for affected senders.
+pub async fn get_group_msg_ids_from_others(
+    pool: &PgPool,
+    group_id: Uuid,
+    viewer_uid: Uuid,
+) -> anyhow::Result<Vec<i64>> {
+    // purpose: fetch all message IDs from other senders for read count recomputation
+    sqlx::query_scalar!(
+        r#"SELECT id FROM im_group_messages
+           WHERE group_id = $1 AND from_uid != $2
+           ORDER BY id"#,
+        group_id,
+        viewer_uid,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_group_msg_ids_from_others failed: {e}");
+        anyhow::anyhow!(e)
+    })
+}
+
+/// Get the sender of a single group message by its ID.
+pub async fn get_group_msg_sender(pool: &PgPool, msg_id: i64) -> anyhow::Result<Option<Uuid>> {
+    // purpose: lookup the from_uid for a group message
+    sqlx::query_scalar!(
+        r#"SELECT from_uid FROM im_group_messages WHERE id = $1"#,
+        msg_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_group_msg_sender failed: {e}");
+        anyhow::anyhow!(e)
+    })
+}
+
 pub async fn persist_group_message(
     pool: &PgPool,
     group_id: Uuid,
@@ -709,6 +747,32 @@ pub async fn upsert_group_read_cursor(
         e
     })?;
     Ok(())
+}
+
+/// Mark a group as read up to the latest message, and return message IDs from
+/// OTHER senders whose read counts changed (for pushing GroupDeliveryUpdate).
+pub async fn mark_group_read_and_get_affected(
+    pool: &PgPool,
+    group_id: Uuid,
+    viewer_uid: Uuid,
+) -> anyhow::Result<Vec<i64>> {
+    // purpose: upsert read cursor to the latest message, then return all msg_ids
+    // from other senders so the caller can recompute read counts.
+    let latest: Option<i64> = sqlx::query_scalar!(
+        r#"SELECT MAX(id) FROM im_group_messages WHERE group_id = $1"#,
+        group_id,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
+
+    let Some(latest) = latest else {
+        return Ok(vec![]);
+    };
+
+    upsert_group_read_cursor(pool, viewer_uid, group_id, latest).await?;
+
+    get_group_msg_ids_from_others(pool, group_id, viewer_uid).await
 }
 
 pub async fn get_unseen_group_messages(

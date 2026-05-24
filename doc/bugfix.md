@@ -137,8 +137,8 @@ messages as seen even when Bob wasn't viewing Alice's chat.
 ### 9. Group read status (✓ Read N/M) never updating (2026-05-25)
 
 **Symptom**: After sending a group message, the status permanently showed "◷ Sent".
-The `group_delivery_update` WS message arrived from the server but the frontend
-silently ignored it — the read count never appeared.
+The `group_delivery_update` WS message was never processed by the frontend.
+Read counts either stayed at 0 or jumped incorrectly (e.g., 3/3 immediately).
 
 **Root cause — multiple cascading issues**:
 
@@ -150,37 +150,44 @@ silently ignored it — the read count never appeared.
 
 2. **`get_group_read_counts` SQL counted the message sender as a reader.**
    When the sender's own read cursor covered their own message, they were
-   counted as a reader. With 3 members, a freshly-sent message showed
-   "Read 1/2" (the sender themself counted as 1 reader of their own message)
-   or jumped straight to "Read 3/3".
+   counted as a reader. Fixed by JOINing `im_group_messages` and filtering
+   with `cr.user_id != gm.from_uid`.
 
-3. **No integration test for `group_delivery_update` flow.** The existing
-   group test only verified `group_chat_ack` and `group_push`, not the
-   delivery update push that happens when someone views history.
+3. **No `mark_group_read` WS command (real-time seen-marking).** The private
+   chat had `mark_seen` to mark messages as read during active viewing, but
+   groups had no equivalent. When Bob was already viewing the group chat and
+   Alice sent a message, Bob received `group_push` but his read cursor was
+   never updated. The `group_history_handler` only fires when opening/reloading
+   a group, not during real-time viewing.
+
+4. **Debug logs set to wrong levels.** `console.debug` is hidden by default
+   in Chrome DevTools (needs "Verbose" filter checked). `tracing::debug!`
+   needs `RUST_LOG=myx_im=debug`. Both were invisible during debugging.
 
 **Fix**:
 
 - `appendGroupMsg()` now `return div` so `pendingMsgs[seq].el` is the real DOM element
 - `handleGroupAck()` maps `msgById[real_msg_id] = e.el` correctly
-- Frontend logs via `console.debug` added to `handleGroupAck`, `handleGroupDeliveryUpdate`, and `sendGroupMessage` for debugging
 - `get_group_read_counts` SQL JOINs `im_group_messages` and filters with
   `cr.user_id != gm.from_uid` to exclude each message's own sender from its
   read count
 - Removed `sender_uid` parameter from `get_group_read_counts` (was wrong for
   multi-sender batches)
-- Added `test_group_read_status_delivery_update`: Alice sends 2 messages,
-  Bob views history → Alice gets `group_delivery_update` with `read=1,total=2`,
-  Carol views history → Alice gets `read=2,total=2`
-- Backend `tracing::debug` logs added to `group_history_handler`,
-  `group_chat` WS handler, and `get_group_read_counts`
+- **Added `mark_group_read` WS command**: frontend sends it when receiving
+  `group_push` while viewing that group (same pattern as `mark_seen` for
+  private chat). Backend handler:
+  1. Upserts read cursor to latest message via `mark_group_read_and_get_affected`
+  2. Computes read counts for messages from other senders via `get_group_read_counts`
+  3. Pushes `group_delivery_update` to each affected sender
+- New DAO functions: `mark_group_read_and_get_affected`, `get_group_msg_ids_from_others`,
+  `get_group_msg_sender`
+- Log levels: key messages use `tracing::info!` (visible without `RUST_LOG`),
+  verbose ones use `tracing::debug!`. Frontend uses `console.log` for critical
+  path, `console.debug` for details.
+- Added `test_group_read_status_delivery_update`: Alice sends messages, Bob/Carol
+  view history → Alice gets incremental `group_delivery_update` (1/2 → 2/2)
+- Added `test_group_mark_read_realtime`: Bob viewing group when Alice sends →
+  Bob's `mark_group_read` triggers `group_delivery_update` to Alice immediately
 
-**Tracing tips for debugging**:
-
-```bash
-# See all group read status related logs:
-RUST_LOG=myx_im=debug cargo run 2>&1 | grep -E 'grpAck|grpDelUp|sendGrp|group_chat|group_history|group_delivery|get_group_read'
-```
-
-Frontend logs appear in browser console with `[grpAck]`, `[grpDelUp]`, `[sendGrp]` prefixes.
-
-**Files changed**: `chat.html`, `src/dao.rs`, `src/router.rs`, `tests/integration_test.rs`
+**Files changed**: `chat.html`, `src/dao.rs`, `src/router.rs`,
+`tests/integration_test.rs`, `doc/bugfix.md`

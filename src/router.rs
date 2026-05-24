@@ -253,6 +253,83 @@ async fn handle_biz_msg(
                 Err(e) => tracing::error!("mark_seen_from_peer failed: {e}"),
             }
         }
+        "mark_group_read" => {
+            // Client is viewing a group — mark all messages as read up to latest.
+            let group_id: Uuid = match ws_msg.data.get("group_id").and_then(|v| v.as_str()) {
+                Some(s) => match s.parse() {
+                    Ok(id) => id,
+                    Err(e) => {
+                        tracing::warn!("mark_group_read: invalid group_id: {e}");
+                        return;
+                    }
+                },
+                None => {
+                    tracing::warn!("mark_group_read: missing group_id");
+                    return;
+                }
+            };
+            match dao::mark_group_read_and_get_affected(&state.pg_pool, group_id, uid).await {
+                Ok(msg_ids) if !msg_ids.is_empty() => {
+                    tracing::info!(
+                        "mark_group_read: viewer={uid} group={group_id} affected_msgs={:?}",
+                        msg_ids
+                    );
+                    if let Ok(counts) =
+                        dao::get_group_read_counts(&state.pg_pool, group_id, &msg_ids).await
+                    {
+                        // Group by sender UID — need to know which sender owns each msg_id
+                        let mut sender_msgs: std::collections::HashMap<Uuid, Vec<i64>> =
+                            std::collections::HashMap::new();
+                        // Fetch sender per message (we already know they're from others)
+                        for mid in &msg_ids {
+                            if let Ok(Some(from_uid)) =
+                                dao::get_group_msg_sender(&state.pg_pool, *mid).await
+                            {
+                                sender_msgs.entry(from_uid).or_default().push(*mid);
+                            }
+                        }
+                        let count_map: std::collections::HashMap<i64, (i64, i64)> = counts
+                            .into_iter()
+                            .map(|(mid, r, t)| (mid, (r, t)))
+                            .collect();
+
+                        for (sender_uid, mids) in &sender_msgs {
+                            let mut statuses = vec![];
+                            for mid in mids {
+                                if let Some((read, total)) = count_map.get(mid) {
+                                    statuses.push(crate::model::GroupMsgReadStatus {
+                                        msg_id: *mid,
+                                        read: *read,
+                                        total: *total,
+                                    });
+                                }
+                            }
+                            if !statuses.is_empty() {
+                                let update = crate::model::GroupDeliveryUpdate {
+                                    group_id,
+                                    msg_statuses: statuses,
+                                    reader_uid: uid,
+                                };
+                                if let Ok(json) = serde_json::to_string(&update) {
+                                    tracing::info!(
+                                        "mark_group_read: push delivery_update to sender={sender_uid}: {json}"
+                                    );
+                                    state.send_to_user(
+                                        *sender_uid,
+                                        Utf8Bytes::from(format!(
+                                            r#"{{"cmd":"group_delivery_update","seq":0,"data":{}}}"#,
+                                            json
+                                        )),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => tracing::error!("mark_group_read failed: {e}"),
+            }
+        }
         "private_chat" => {
             let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
                 Ok(r) => r,
@@ -373,7 +450,7 @@ async fn handle_biz_msg(
             {
                 Ok(msg_id) => {
                     // ACK to sender
-                    tracing::debug!(
+                    tracing::info!(
                         "group_chat persisted msg_id={msg_id} group={group_id} user={uid}",
                         group_id = req.group_id
                     );

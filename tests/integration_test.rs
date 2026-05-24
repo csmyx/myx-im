@@ -1035,3 +1035,158 @@ async fn test_group_read_status_delivery_update() {
     alice_ws.close(None).await.unwrap();
     server_handle.abort();
 }
+
+/// Group read status in real-time: when Bob is already viewing the group and
+/// Alice sends a message, Bob's mark_group_read triggers delivery_update to Alice.
+///
+/// Steps:
+///   1. Register Alice and Bob, Alice creates group, Bob joins
+///   2. Both connect WS
+///   3. Bob opens group history (sets initial read cursor)
+///   4. Alice sends a group message → Bob receives group_push
+///   5. Bob sends mark_group_read (simulating frontend behavior)
+///   6. Alice receives group_delivery_update with read=1, total=1
+#[tokio::test]
+async fn test_group_mark_read_realtime() {
+    use futures_util::SinkExt;
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::Message;
+
+    dotenv::dotenv().ok();
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // ---- Register + login Alice and Bob ----
+    let alice = serde_json::json!({"username": "test_mr_alice", "password": "alice123"});
+    let bob = serde_json::json!({"username": "test_mr_bob", "password": "bob123"});
+
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &alice).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register alice: {r}");
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &bob).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register bob: {r}");
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &alice).await;
+    assert_eq!(r["code"], 200, "alice login: {r}");
+    let alice_token = r["data"].as_str().unwrap().to_string();
+
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &bob).await;
+    assert_eq!(r["code"], 200, "bob login: {r}");
+    let bob_token = r["data"].as_str().unwrap().to_string();
+
+    // ---- Alice creates group, Bob joins ----
+    let group_name = format!("MarkRead {}", Uuid::new_v4());
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/create", addr),
+        &serde_json::json!({"token": alice_token, "name": &group_name}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "create group: {r}");
+    let group_id: Uuid = r["data"]["group_id"].as_str().unwrap().parse().unwrap();
+
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/join", addr),
+        &serde_json::json!({"token": bob_token, "group_id": group_id}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "bob join: {r}");
+
+    // ---- Connect both via WS ----
+    let mut alice_ws = ws_connect(&addr, &alice_token).await;
+    let mut bob_ws = ws_connect(&addr, &bob_token).await;
+
+    // ---- Bob opens group history to set initial read cursor ----
+    let _r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/history?token={}&group_id={}&limit=10",
+            addr, bob_token, group_id
+        ),
+    )
+    .await;
+
+    // ---- Alice sends group message ----
+    let gmsg = serde_json::json!({
+        "cmd": "group_chat",
+        "seq": 1,
+        "data": {
+            "group_id": group_id,
+            "content": "real-time mark_read test",
+            "msg_type": 1,
+            "from_name": "test_mr_alice"
+        }
+    });
+    let ack = ws_send_recv(&mut alice_ws, &gmsg.to_string()).await;
+    let ack_val: serde_json::Value = serde_json::from_str(&ack).unwrap();
+    assert_eq!(ack_val["cmd"], "group_chat_ack", "group ACK: {ack}");
+    assert!(ack_val["data"]["msg_id"].is_number(), "should have msg_id");
+
+    // Bob drains group_push
+    let push = ws_send_recv(&mut bob_ws, r#"{"cmd":"heartbeat","seq":0,"data":{}}"#).await;
+    let push_val: serde_json::Value = serde_json::from_str(&push).unwrap();
+    assert_eq!(push_val["cmd"], "group_push", "bob should get push: {push}");
+
+    // ---- Bob sends mark_group_read (simulating frontend behavior) ----
+    bob_ws
+        .send(Message::Text(
+            serde_json::json!({
+                "cmd": "mark_group_read",
+                "seq": 0,
+                "data": {"group_id": group_id}
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+
+    // ---- Alice should receive group_delivery_update ----
+    async fn drain_until_delivery_update(
+        ws: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    ) -> Option<serde_json::Value> {
+        for _ in 0..10 {
+            match ws.next().await {
+                Some(Ok(Message::Text(t))) => {
+                    let v: serde_json::Value = serde_json::from_str(&t).unwrap_or_default();
+                    if v["cmd"] == "group_delivery_update" {
+                        return Some(v);
+                    }
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    let du = drain_until_delivery_update(&mut alice_ws).await;
+    assert!(
+        du.is_some(),
+        "alice should receive group_delivery_update after bob's mark_group_read"
+    );
+    let du = du.unwrap();
+    let statuses = du["data"]["msg_statuses"].as_array().unwrap();
+    assert!(!statuses.is_empty(), "should have msg_statuses");
+    let s0 = &statuses[0];
+    assert_eq!(
+        s0["read"], 1,
+        "bob read via mark_group_read, read should be 1: {s0}"
+    );
+    assert_eq!(s0["total"], 1, "2 members total, total should be 1: {s0}");
+
+    // ---- Cleanup ----
+    alice_ws.close(None).await.unwrap();
+    bob_ws.close(None).await.unwrap();
+    server_handle.abort();
+}
