@@ -421,6 +421,36 @@ graph TB
 
 ---
 
+## Message Status State Machine
+
+Own messages transition between three states. Status is displayed below each
+message bubble and persisted to `localStorage` for survival across reloads.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Sending: sendMessage()
+    Sending --> Read: handleAck<br/>delivered=true (peer online)
+    Sending --> Sent: handleAck<br/>delivered=false (peer offline)
+    Sent --> Read: delivery_update<br/>(peer opened chat or mark_seen)
+    Read --> Read: delivery_update (idempotent)
+    Sending --> Read: delivery_update<br/>(fast path, before ack)
+
+    note "History rendering" as N1
+    Sent --> Read: appendMsg<br/>m.seen=true (from DB)
+    Sent --> Sent: appendMsg<br/>m.seen=false (from DB)
+```
+
+| State | Label | CSS class | Trigger |
+|-------|-------|-----------|---------|
+| Sending | `◷ Sending...` | `.pending` | Message sent, waiting for ACK |
+| Sent | `◷ Sent` | `.undelivered` | Peer offline, or history seen=false |
+| Read | `✓ Read` | `.delivered` | Peer online (ACK), or delivery_update |
+
+**Persistence**: `handleAck` and `handleDeliveryUpdate` call `saveMsgStatus(id, 'read')`.
+On history load, `appendMsg` checks `localStorage` first, then falls back to `m.seen`.
+
+---
+
 ## WebSocket Task Topology
 
 How `handle_im_websocket` (src/router.rs:87) orchestrates 3 concurrent tasks
