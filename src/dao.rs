@@ -220,15 +220,38 @@ pub async fn mark_seen_from_peer(
 // ===== Friend DAO =====
 
 pub async fn add_friend(pool: &PgPool, user_id: Uuid, friend_id: Uuid) -> anyhow::Result<()> {
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("add_friend begin tx failed: {e}");
+        e
+    })?;
+
+    // Insert bidirectional: (A, B) and (B, A)
     sqlx::query!(
         "INSERT INTO im_friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         user_id,
         friend_id,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| {
-        tracing::error!("add_friend failed: {e}");
+        tracing::error!("add_friend forward insert failed: {e}");
+        e
+    })?;
+
+    sqlx::query!(
+        "INSERT INTO im_friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        friend_id,
+        user_id,
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("add_friend reverse insert failed: {e}");
+        e
+    })?;
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!("add_friend commit failed: {e}");
         e
     })?;
     Ok(())

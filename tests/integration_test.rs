@@ -437,7 +437,7 @@ async fn test_delete_account_kicks_ws() {
 ///   1. Register two users, login
 ///   2. Alice adds Bob as friend
 ///   3. Alice lists friends → Bob should appear
-///   4. Bob lists friends → Alice does NOT appear (not bidirectional)
+///   4. Bob lists friends → Alice appears (bidirectional)
 #[tokio::test]
 async fn test_friend_add_and_list() {
     dotenv::dotenv().ok();
@@ -508,7 +508,7 @@ async fn test_friend_add_and_list() {
         "bob should be in alice's friends: {friends:?}"
     );
 
-    // Bob lists friends → Alice should NOT appear (not automatically bidirectional)
+    // Bob lists friends → Alice should appear (automatically bidirectional)
     let r: serde_json::Value = client
         .get(format!("{}/api/friend/list?token={}", addr, bob_token))
         .send()
@@ -520,10 +520,10 @@ async fn test_friend_add_and_list() {
     assert_eq!(r["code"], 200, "bob list friends: {r}");
     let bob_friends = r["data"].as_array().unwrap();
     assert!(
-        !bob_friends
+        bob_friends
             .iter()
             .any(|f| f["friend_id"] == alice_uid.to_string()),
-        "alice should NOT be in bob's friends (not bidirectional)"
+        "alice should be in bob's friends (bidirectional)"
     );
 
     server_handle.abort();
