@@ -76,6 +76,13 @@ pub struct WsMessage {
     pub data: serde_json::Value,
 }
 
+/// Client requests marking all unseen messages from a peer as seen
+/// (sent via WS when user receives a push while viewing that peer's chat)
+#[derive(Debug, Deserialize)]
+pub struct MarkSeenReq {
+    pub to_uid: Uuid,
+}
+
 /// Private chat upstream (client → server via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateChatReq {

@@ -20,9 +20,9 @@ use crate::jwt::verify_token;
 use crate::model::{
     ChatHistoryItem, ConversationItem, CreateGroupReq, DeleteRequest, DeliveryUpdate,
     GroupActionReq, GroupChatAck, GroupChatReq, GroupHistoryItem, GroupHistoryQuery, GroupInfo,
-    GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, PrivateChatAck,
-    PrivateChatReq, PrivatePushMsg, RegisterRequest, Res, SearchQuery, TokenQuery, UserSearchItem,
-    WsMessage,
+    GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, MarkSeenReq,
+    PrivateChatAck, PrivateChatReq, PrivatePushMsg, RegisterRequest, Res, SearchQuery,
+    TokenQuery, UserSearchItem, WsMessage,
 };
 use crate::service;
 use crate::state::AppState;
@@ -200,7 +200,7 @@ async fn handle_biz_msg(
         }
         "mark_seen" => {
             // Client is viewing peer's chat — mark peer's messages as seen
-            let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
+            let req: MarkSeenReq = match serde_json::from_value(ws_msg.data) {
                 Ok(r) => r,
                 Err(e) => {
                     tracing::warn!("failed to parse mark_seen request: {e}");
