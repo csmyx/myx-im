@@ -1066,6 +1066,8 @@
             if (!peers[p] || peers[p].username === '?') peers[p] = { username: d.from_uid === me.uid ? 'You' : (d.from_name || '?') };
             if (activePeer === p && currentPage === 'chat') {
                 appendMsg({ msg_id: Date.now(), from_uid: d.from_uid, to_uid: d.to_uid, content: d.content, msg_type: d.msg_type, send_time: d.send_time }, null, $('msgList'));
+                // Mark peer's messages as seen since we're viewing this chat
+                if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: 'mark_seen', seq: 0, data: { to_uid: p } }));
                 $('chStatus').textContent = 'online'; $('chStatus').style.color = 'var(--accent)'
             } else { unreadCounts[p] = (unreadCounts[p] || 0) + 1; renderConvList() } loadConversations()
         }

@@ -198,6 +198,35 @@ async fn handle_biz_msg(
                 state.send_to_user(req.to_uid, Utf8Bytes::from(payload));
             }
         }
+        "mark_seen" => {
+            // Client is viewing peer's chat — mark peer's messages as seen
+            let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!("failed to parse mark_seen request: {e}");
+                    return;
+                }
+            };
+            match dao::mark_seen_from_peer(&state.pg_pool, req.to_uid, uid).await {
+                Ok(ids) if !ids.is_empty() => {
+                    let update = DeliveryUpdate {
+                        msg_ids: ids,
+                        to_uid: uid,
+                    };
+                    if let Ok(json) = serde_json::to_string(&update) {
+                        state.send_to_user(
+                            req.to_uid,
+                            Utf8Bytes::from(format!(
+                                r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#,
+                                json
+                            )),
+                        );
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => tracing::error!("mark_seen_from_peer failed: {e}"),
+            }
+        }
         "private_chat" => {
             let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
                 Ok(r) => r,
@@ -271,28 +300,6 @@ async fn handle_biz_msg(
                         )));
                     } else {
                         tracing::error!("failed to serialize ACK for msg_id={msg_id}");
-                    }
-
-                    // Mark unseen messages from recipient→sender as seen
-                    // (replying implies the sender read the recipient's messages)
-                    match dao::mark_seen_from_peer(&state.pg_pool, req.to_uid, uid).await {
-                        Ok(ids) if !ids.is_empty() => {
-                            let update = DeliveryUpdate {
-                                msg_ids: ids,
-                                to_uid: uid,
-                            };
-                            if let Ok(json) = serde_json::to_string(&update) {
-                                state.send_to_user(
-                                    req.to_uid,
-                                    Utf8Bytes::from(format!(
-                                        r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#,
-                                        json
-                                    )),
-                                );
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(e) => tracing::error!("mark_seen_from_peer on reply failed: {e}"),
                     }
                 }
                 Err(e) => {
