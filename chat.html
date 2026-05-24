@@ -1,1898 +1,1848 @@
 <!doctype html>
 <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8" />
-        <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover"
-        />
-        <title>myx-im</title>
-        <style>
-            :root {
-                --bg: #0f0f0f;
-                --surface: #1a1a1a;
-                --surface2: #242424;
-                --border: #2a2a2a;
-                --text: #e0e0e0;
-                --text2: #888;
-                --primary: #4a9eff;
-                --primary-dim: #3a7ecc;
-                --accent: #6eca6e;
-                --danger: #e05555;
-                --radius: 10px;
-                --radius-sm: 6px;
-                --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                --max-w: 640px;
-            }
 
-            body.light {
-                --bg: #f5f5f5;
-                --surface: #fff;
-                --surface2: #f0f0f0;
-                --border: #ddd;
-                --text: #222;
-                --text2: #666;
-                --primary: #007aff;
-                --primary-dim: #0056cc;
-            }
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>myx-im</title>
+    <style>
+        :root {
+            --bg: #0f0f0f;
+            --surface: #1a1a1a;
+            --surface2: #242424;
+            --border: #2a2a2a;
+            --text: #e0e0e0;
+            --text2: #888;
+            --primary: #4a9eff;
+            --primary-dim: #3a7ecc;
+            --accent: #6eca6e;
+            --danger: #e05555;
+            --radius: 10px;
+            --radius-sm: 6px;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --max-w: 640px;
+        }
 
-            *,
-            *::before,
-            *::after {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
+        body.light {
+            --bg: #f5f5f5;
+            --surface: #fff;
+            --surface2: #f0f0f0;
+            --border: #ddd;
+            --text: #222;
+            --text2: #666;
+            --primary: #007aff;
+            --primary-dim: #0056cc;
+        }
 
-            html,
-            body {
-                height: 100vh;
-                height: 100dvh;
-                overflow: hidden;
-                -webkit-tap-highlight-color: transparent;
-                -webkit-overflow-scrolling: touch;
-            }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-            body {
-                font: 14px/1.5 var(--font);
-                background: var(--bg);
-                color: var(--text);
-                transition:
-                    background 0.3s,
-                    color 0.3s;
-            }
+        html,
+        body {
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-overflow-scrolling: touch;
+        }
 
-            input,
-            button {
-                font: inherit;
-                color: inherit;
-                border: none;
-                outline: none;
-                background: none;
-            }
+        body {
+            font: 14px/1.5 var(--font);
+            background: var(--bg);
+            color: var(--text);
+            transition:
+                background 0.3s,
+                color 0.3s;
+        }
 
-            button {
-                cursor: pointer;
-            }
+        input,
+        button {
+            font: inherit;
+            color: inherit;
+            border: none;
+            outline: none;
+            background: none;
+        }
 
-            input {
-                width: 100%;
-            }
+        button {
+            cursor: pointer;
+        }
 
-            ::-webkit-scrollbar {
-                width: 4px;
-            }
+        input {
+            width: 100%;
+        }
 
-            ::-webkit-scrollbar-track {
-                background: transparent;
-            }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
 
-            ::-webkit-scrollbar-thumb {
-                background: #555;
-                border-radius: 4px;
-            }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
 
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-width: var(--max-w);
+            margin: 0 auto;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            min-height: 0;
+        }
+
+        #authScreen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            z-index: 100;
+        }
+
+        .auth-box {
+            width: 100%;
+            max-width: 340px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 24px;
+            position: relative;
+        }
+
+        .auth-box h1 {
+            font-size: 22px;
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .auth-box .sub {
+            text-align: center;
+            color: var(--text2);
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+
+        .auth-box label {
+            display: block;
+            font-size: 12px;
+            color: var(--text2);
+            margin-bottom: 4px;
+            margin-top: 12px;
+        }
+
+        .auth-box input {
+            padding: 10px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+        }
+
+        .auth-box input:focus {
+            border-color: var(--primary);
+        }
+
+        .auth-box .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .auth-box .btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dim);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-outline:hover {
+            background: var(--surface2);
+        }
+
+        .auth-box .err {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 8px;
+            min-height: 18px;
+        }
+
+        .theme-toggle {
+            font-size: 18px;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 6px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            opacity: 0.5;
+        }
+
+        .theme-toggle:hover {
+            opacity: 1;
+        }
+
+        .page {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .page.active {
+            display: flex;
+        }
+
+        .page-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--surface);
+            flex-shrink: 0;
+            min-height: 56px;
+        }
+
+        .page-header .btn-back {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: var(--text2);
+            flex-shrink: 0;
+            border-radius: var(--radius-sm);
+        }
+
+        .page-header .btn-back:hover {
+            background: var(--surface2);
+        }
+
+        .page-header .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+
+        .page-header .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .page-header .title {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .page-header .subtitle {
+            font-size: 11px;
+            color: var(--text2);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .page-header .header-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .page-header .header-actions button {
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text2);
+        }
+
+        .page-header .header-actions button:hover {
+            color: var(--text);
+            border-color: var(--text2);
+        }
+
+        .page-header .header-actions button.danger:hover {
+            color: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .search-wrap {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .search-wrap input {
+            padding: 8px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+        }
+
+        .search-wrap input:focus {
+            border-color: var(--primary);
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 14px;
+            right: 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            display: none;
+        }
+
+        .search-results.show {
+            display: block;
+        }
+
+        .search-results .item {
+            padding: 10px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-results .item:hover {
+            background: var(--surface);
+        }
+
+        .search-results .item .sr-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .list-area {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .list-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: background 0.15s;
+        }
+
+        .list-item:hover,
+        .list-item:active {
+            background: var(--surface2);
+        }
+
+        .list-item .li-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 17px;
+            flex-shrink: 0;
+        }
+
+        .list-item .li-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .list-item .li-name {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .list-item .li-last {
+            font-size: 13px;
+            color: var(--text2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .list-item .li-meta {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .list-item .li-time {
+            font-size: 11px;
+            color: var(--text2);
+        }
+
+        .badge {
+            display: inline-block;
+            background: var(--danger);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            min-width: 20px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .msg-list {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            padding: 16px 14px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .msg-loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text2);
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .msg-loading:hover {
+            color: var(--primary);
+        }
+
+        .msg-row {
+            display: flex;
+            gap: 8px;
+            max-width: 80%;
+            margin-bottom: 6px;
+        }
+
+        .msg-row.mine {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+            margin-left: auto;
+        }
+
+        .msg-row .m-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--surface2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text2);
+            flex-shrink: 0;
+        }
+
+        .msg-row.mine .m-avatar {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .msg-bubble {
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--surface2);
+            font-size: 14px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .msg-row.mine .msg-bubble {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .msg-time {
+            font-size: 10px;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+
+        .msg-status {
+            font-size: 10px;
+            margin-top: 2px;
+            text-align: right;
+        }
+
+        .msg-status .delivered {
+            color: #6eca6e;
+        }
+
+        .msg-status .pending {
+            color: var(--text2);
+        }
+
+        .msg-status .undelivered {
+            color: #e5c07b;
+        }
+
+        .typing-indicator {
+            font-size: 11px;
+            color: var(--text2);
+            padding: 2px 14px;
+            font-style: italic;
+        }
+
+        .input-bar {
+            padding: 10px 14px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            background: var(--surface);
+            flex-shrink: 0;
+        }
+
+        .input-bar textarea {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            resize: none;
+            min-height: 38px;
+            max-height: 120px;
+            line-height: 1.4;
+            color: var(--text);
+        }
+
+        .input-bar textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .input-bar .btn-send {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: #fff;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .input-bar .btn-send:hover {
+            background: var(--primary-dim);
+        }
+
+        #bottomNav {
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+            flex-shrink: 0;
+            display: flex;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        #bottomNav button {
+            flex: 1;
+            padding: 8px 0;
+            font-size: 11px;
+            color: var(--text2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            transition: color 0.15s;
+        }
+
+        #bottomNav button .icon {
+            font-size: 20px;
+        }
+
+        #bottomNav button.active {
+            color: var(--primary);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            width: 90%;
+            max-width: 360px;
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+
+        .modal label {
+            display: block;
+            font-size: 12px;
+            color: var(--text2);
+            margin-bottom: 4px;
+        }
+
+        .modal input {
+            padding: 10px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .modal .err {
+            color: var(--danger);
+            font-size: 12px;
+            margin-bottom: 8px;
+            min-height: 18px;
+        }
+
+        .modal .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .modal .btn-row .btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .empty-state {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text2);
+            font-size: 13px;
+        }
+
+        @media (max-width: 700px) {
             #app {
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-                max-width: var(--max-w);
-                margin: 0 auto;
-                border-left: 1px solid var(--border);
-                border-right: 1px solid var(--border);
-                min-height: 0;
+                border-left: none;
+                border-right: none;
             }
 
-            #authScreen {
-                position: absolute;
-                inset: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: var(--bg);
-                z-index: 100;
-            }
-
-            .auth-box {
-                width: 100%;
-                max-width: 340px;
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: var(--radius);
-                padding: 32px 24px;
-                position: relative;
-            }
-
-            .auth-box h1 {
-                font-size: 22px;
-                text-align: center;
-                margin-bottom: 6px;
-            }
-
-            .auth-box .sub {
-                text-align: center;
-                color: var(--text2);
-                font-size: 13px;
-                margin-bottom: 24px;
-            }
-
-            .auth-box label {
-                display: block;
-                font-size: 12px;
-                color: var(--text2);
-                margin-bottom: 4px;
-                margin-top: 12px;
-            }
-
-            .auth-box input {
-                padding: 10px 12px;
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                font-size: 14px;
-            }
-
-            .auth-box input:focus {
-                border-color: var(--primary);
-            }
-
-            .auth-box .btn-row {
-                display: flex;
-                gap: 8px;
-                margin-top: 20px;
-            }
-
-            .auth-box .btn {
-                flex: 1;
-                padding: 10px;
-                border-radius: var(--radius-sm);
-                font-size: 14px;
-                font-weight: 600;
-                text-align: center;
-            }
-
-            .btn-primary {
-                background: var(--primary);
-                color: #fff;
-            }
-
-            .btn-primary:hover {
-                background: var(--primary-dim);
-            }
-
-            .btn-outline {
-                background: transparent;
-                border: 1px solid var(--border);
-                color: var(--text);
-            }
-
-            .btn-outline:hover {
-                background: var(--surface2);
-            }
-
-            .auth-box .err {
-                color: var(--danger);
-                font-size: 12px;
-                margin-top: 8px;
-                min-height: 18px;
-            }
-
-            .theme-toggle {
-                font-size: 18px;
-                position: absolute;
-                top: 8px;
-                right: 8px;
-                padding: 4px 6px;
-                border-radius: var(--radius-sm);
-                cursor: pointer;
-                opacity: 0.5;
-            }
-
-            .theme-toggle:hover {
-                opacity: 1;
-            }
-
-            .page {
-                display: none;
-                flex-direction: column;
-                flex: 1;
-                min-height: 0;
-            }
-
-            .page.active {
-                display: flex;
-            }
-
-            .page-header {
-                padding: 14px 16px;
-                border-bottom: 1px solid var(--border);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                background: var(--surface);
-                flex-shrink: 0;
-                min-height: 56px;
-            }
-
-            .page-header .btn-back {
-                width: 32px;
-                height: 32px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 20px;
-                color: var(--text2);
-                flex-shrink: 0;
-                border-radius: var(--radius-sm);
-            }
-
-            .page-header .btn-back:hover {
-                background: var(--surface2);
-            }
-
-            .page-header .avatar {
-                width: 36px;
-                height: 36px;
-                border-radius: 50%;
-                background: var(--primary);
-                color: #fff;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 700;
+            body {
                 font-size: 15px;
-                flex-shrink: 0;
-            }
-
-            .page-header .info {
-                flex: 1;
-                min-width: 0;
-            }
-
-            .page-header .title {
-                font-weight: 600;
-                font-size: 15px;
-            }
-
-            .page-header .subtitle {
-                font-size: 11px;
-                color: var(--text2);
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            }
-
-            .page-header .header-actions {
-                display: flex;
-                gap: 6px;
-                flex-shrink: 0;
-            }
-
-            .page-header .header-actions button {
-                padding: 6px 10px;
-                font-size: 12px;
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                color: var(--text2);
-            }
-
-            .page-header .header-actions button:hover {
-                color: var(--text);
-                border-color: var(--text2);
-            }
-
-            .page-header .header-actions button.danger:hover {
-                color: var(--danger);
-                border-color: var(--danger);
-            }
-
-            .search-wrap {
-                padding: 10px 14px;
-                border-bottom: 1px solid var(--border);
-                position: relative;
-                flex-shrink: 0;
-            }
-
-            .search-wrap input {
-                padding: 8px 12px;
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                font-size: 13px;
-            }
-
-            .search-wrap input:focus {
-                border-color: var(--primary);
-            }
-
-            .search-results {
-                position: absolute;
-                top: 100%;
-                left: 14px;
-                right: 14px;
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                max-height: 200px;
-                overflow-y: auto;
-                z-index: 10;
-                display: none;
-            }
-
-            .search-results.show {
-                display: block;
-            }
-
-            .search-results .item {
-                padding: 10px 12px;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .search-results .item:hover {
-                background: var(--surface);
-            }
-
-            .search-results .item .sr-avatar {
-                width: 28px;
-                height: 28px;
-                border-radius: 50%;
-                background: var(--primary);
-                color: #fff;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 12px;
-                font-weight: 700;
-                flex-shrink: 0;
-            }
-
-            .list-area {
-                flex: 1;
-                overflow-y: auto;
-                min-height: 0;
-                -webkit-overflow-scrolling: touch;
             }
 
             .list-item {
-                padding: 12px 16px;
-                border-bottom: 1px solid var(--border);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                transition: background 0.15s;
-            }
-
-            .list-item:hover,
-            .list-item:active {
-                background: var(--surface2);
+                padding: 14px 16px;
             }
 
             .list-item .li-avatar {
-                width: 44px;
-                height: 44px;
-                border-radius: 50%;
-                background: var(--primary);
-                color: #fff;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 700;
-                font-size: 17px;
-                flex-shrink: 0;
-            }
-
-            .list-item .li-info {
-                flex: 1;
-                min-width: 0;
+                width: 48px;
+                height: 48px;
+                font-size: 18px;
             }
 
             .list-item .li-name {
-                font-weight: 600;
-                font-size: 15px;
-            }
-
-            .list-item .li-last {
-                font-size: 13px;
-                color: var(--text2);
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-            }
-
-            .list-item .li-meta {
-                text-align: right;
-                flex-shrink: 0;
-            }
-
-            .list-item .li-time {
-                font-size: 11px;
-                color: var(--text2);
-            }
-
-            .badge {
-                display: inline-block;
-                background: var(--danger);
-                color: #fff;
-                font-size: 11px;
-                font-weight: 700;
-                min-width: 20px;
-                padding: 1px 6px;
-                border-radius: 10px;
-                text-align: center;
-            }
-
-            .msg-list {
-                flex: 1;
-                overflow-y: auto;
-                min-height: 0;
-                padding: 16px 14px;
-                scroll-behavior: smooth;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .msg-loading {
-                text-align: center;
-                padding: 20px;
-                color: var(--text2);
-                font-size: 12px;
-                cursor: pointer;
-            }
-
-            .msg-loading:hover {
-                color: var(--primary);
-            }
-
-            .msg-row {
-                display: flex;
-                gap: 8px;
-                max-width: 80%;
-                margin-bottom: 6px;
-            }
-
-            .msg-row.mine {
-                align-self: flex-end;
-                flex-direction: row-reverse;
-                margin-left: auto;
-            }
-
-            .msg-row .m-avatar {
-                width: 30px;
-                height: 30px;
-                border-radius: 50%;
-                background: var(--surface2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 11px;
-                font-weight: 700;
-                color: var(--text2);
-                flex-shrink: 0;
-            }
-
-            .msg-row.mine .m-avatar {
-                background: var(--primary);
-                color: #fff;
-            }
-
-            .msg-bubble {
-                padding: 8px 12px;
-                border-radius: var(--radius-sm);
-                background: var(--surface2);
-                font-size: 14px;
-                line-height: 1.5;
-                word-break: break-word;
-            }
-
-            .msg-row.mine .msg-bubble {
-                background: var(--primary);
-                color: #fff;
-            }
-
-            .msg-time {
-                font-size: 10px;
-                color: var(--text2);
-                margin-top: 2px;
-            }
-
-            .msg-status {
-                font-size: 10px;
-                margin-top: 2px;
-                text-align: right;
-            }
-
-            .msg-status .delivered {
-                color: #6eca6e;
-            }
-
-            .msg-status .pending {
-                color: var(--text2);
-            }
-
-            .msg-status .undelivered {
-                color: #e5c07b;
-            }
-
-            .typing-indicator {
-                font-size: 11px;
-                color: var(--text2);
-                padding: 2px 14px;
-                font-style: italic;
-            }
-
-            .input-bar {
-                padding: 10px 14px;
-                border-top: 1px solid var(--border);
-                display: flex;
-                gap: 8px;
-                align-items: flex-end;
-                background: var(--surface);
-                flex-shrink: 0;
-            }
-
-            .input-bar textarea {
-                flex: 1;
-                padding: 8px 12px;
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                font-size: 14px;
-                resize: none;
-                min-height: 38px;
-                max-height: 120px;
-                line-height: 1.4;
-                color: var(--text);
-            }
-
-            .input-bar textarea:focus {
-                border-color: var(--primary);
-            }
-
-            .input-bar .btn-send {
-                padding: 8px 16px;
-                background: var(--primary);
-                color: #fff;
-                border-radius: var(--radius-sm);
-                font-weight: 600;
-                font-size: 14px;
-                flex-shrink: 0;
-            }
-
-            .input-bar .btn-send:hover {
-                background: var(--primary-dim);
-            }
-
-            #bottomNav {
-                border-top: 1px solid var(--border);
-                background: var(--surface);
-                flex-shrink: 0;
-                display: flex;
-                padding-bottom: env(safe-area-inset-bottom);
-            }
-
-            #bottomNav button {
-                flex: 1;
-                padding: 8px 0;
-                font-size: 11px;
-                color: var(--text2);
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 2px;
-                transition: color 0.15s;
-            }
-
-            #bottomNav button .icon {
-                font-size: 20px;
-            }
-
-            #bottomNav button.active {
-                color: var(--primary);
-            }
-
-            .modal-overlay {
-                display: none;
-                position: fixed;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.6);
-                z-index: 200;
-                align-items: center;
-                justify-content: center;
-            }
-
-            .modal-overlay.show {
-                display: flex;
-            }
-
-            .modal {
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: var(--radius);
-                padding: 24px;
-                width: 90%;
-                max-width: 360px;
-            }
-
-            .modal h3 {
-                margin-bottom: 16px;
                 font-size: 16px;
             }
 
-            .modal label {
-                display: block;
-                font-size: 12px;
-                color: var(--text2);
-                margin-bottom: 4px;
+            .list-item .li-last {
+                font-size: 14px;
             }
 
-            .modal input {
+            .msg-bubble {
+                font-size: 15px;
+                padding: 10px 14px;
+            }
+
+            .input-bar textarea {
+                font-size: 16px;
                 padding: 10px 12px;
-                background: var(--surface2);
-                border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
-                font-size: 14px;
-                margin-bottom: 8px;
             }
 
-            .modal .err {
-                color: var(--danger);
-                font-size: 12px;
-                margin-bottom: 8px;
-                min-height: 18px;
+            .input-bar .btn-send {
+                padding: 12px 20px;
+                font-size: 16px;
+                min-width: 60px;
             }
 
-            .modal .btn-row {
-                display: flex;
-                gap: 8px;
-                margin-top: 12px;
+            .page-header {
+                padding: max(14px, env(safe-area-inset-top)) 16px 14px 16px;
             }
 
-            .modal .btn-row .btn {
-                flex: 1;
-                padding: 10px;
-                border-radius: var(--radius-sm);
-                font-size: 14px;
-                font-weight: 600;
-                text-align: center;
-                cursor: pointer;
+            .input-bar {
+                padding: 10px 12px max(10px, env(safe-area-inset-bottom));
             }
 
-            .empty-state {
-                padding: 40px 20px;
-                text-align: center;
-                color: var(--text2);
-                font-size: 13px;
+            .auth-box {
+                padding: 28px 20px;
             }
 
-            @media (max-width: 700px) {
-                #app {
-                    border-left: none;
-                    border-right: none;
-                }
-
-                body {
-                    font-size: 15px;
-                }
-
-                .list-item {
-                    padding: 14px 16px;
-                }
-
-                .list-item .li-avatar {
-                    width: 48px;
-                    height: 48px;
-                    font-size: 18px;
-                }
-
-                .list-item .li-name {
-                    font-size: 16px;
-                }
-
-                .list-item .li-last {
-                    font-size: 14px;
-                }
-
-                .msg-bubble {
-                    font-size: 15px;
-                    padding: 10px 14px;
-                }
-
-                .input-bar textarea {
-                    font-size: 16px;
-                    padding: 10px 12px;
-                }
-
-                .input-bar .btn-send {
-                    padding: 12px 20px;
-                    font-size: 16px;
-                    min-width: 60px;
-                }
-
-                .page-header {
-                    padding: max(14px, env(safe-area-inset-top)) 16px 14px 16px;
-                }
-
-                .input-bar {
-                    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
-                }
-
-                .auth-box {
-                    padding: 28px 20px;
-                }
-
-                .auth-box input {
-                    padding: 12px;
-                    font-size: 16px;
-                }
-
-                .auth-box .btn {
-                    padding: 12px;
-                    font-size: 15px;
-                }
-
-                .search-wrap input {
-                    padding: 10px 14px;
-                    font-size: 16px;
-                }
-
-                .msg-row {
-                    max-width: 88%;
-                }
+            .auth-box input {
+                padding: 12px;
+                font-size: 16px;
             }
-        </style>
-    </head>
 
-    <body>
-        <div id="app">
-            <div id="authScreen">
-                <div class="auth-box">
-                    <h1>myx-im</h1>
-                    <div class="sub">Instant Messaging</div>
-                    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-                        🌓</button
-                    ><label for="authUser">Username</label
-                    ><input
-                        id="authUser"
-                        placeholder="123"
-                        value="123"
-                        maxlength="20"
-                        autocomplete="username"
-                    /><label for="authPass">Password</label
-                    ><input
-                        id="authPass"
-                        type="password"
-                        placeholder="123123"
-                        value="123123"
-                        maxlength="20"
-                        autocomplete="current-password"
-                    />
-                    <div class="err" id="authErr"></div>
-                    <div class="btn-row">
-                        <button class="btn btn-primary" onclick="doRegister()">Register</button
-                        ><button class="btn btn-outline" onclick="doLogin()">Login</button>
-                    </div>
+            .auth-box .btn {
+                padding: 12px;
+                font-size: 15px;
+            }
+
+            .search-wrap input {
+                padding: 10px 14px;
+                font-size: 16px;
+            }
+
+            .msg-row {
+                max-width: 88%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="authScreen">
+            <div class="auth-box">
+                <h1>myx-im</h1>
+                <div class="sub">Instant Messaging</div>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                    🌓</button><label for="authUser">Username</label><input id="authUser" placeholder="123" value="123"
+                    maxlength="20" autocomplete="username" /><label for="authPass">Password</label><input id="authPass"
+                    type="password" placeholder="123123" value="123123" maxlength="20"
+                    autocomplete="current-password" />
+                <div class="err" id="authErr"></div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="doRegister()">Register</button><button
+                        class="btn btn-outline" onclick="doLogin()">Login</button>
                 </div>
             </div>
+        </div>
 
-            <div class="page" id="pageChats">
-                <div class="page-header">
-                    <div class="avatar" id="myAvatar"></div>
-                    <div class="info">
-                        <div class="title" id="myName"></div>
-                    </div>
-                    <div class="header-actions">
-                        <button onclick="toggleTheme()" title="Toggle theme">🌓</button>
-                    </div>
+        <div class="page" id="pageChats">
+            <div class="page-header">
+                <div class="avatar" id="myAvatar"></div>
+                <div class="info">
+                    <div class="title" id="myName"></div>
                 </div>
-                <div class="search-wrap">
-                    <input
-                        id="searchInput"
-                        placeholder="Search users..."
-                        autocomplete="off"
-                        oninput="onSearchInput()"
-                        onfocus="onSearchInput()"
-                    />
-                    <div class="search-results" id="searchResults"></div>
-                </div>
-                <div class="list-area" id="convList"></div>
-            </div>
-
-            <div class="page" id="pageGroups">
-                <div class="page-header">
-                    <button class="btn-back" onclick="goTo('chats')">←</button>
-                    <div class="info">
-                        <div class="title">Groups</div>
-                    </div>
-                    <div class="header-actions">
-                        <button onclick="openModal('create')">+ Create</button
-                        ><button onclick="openModal('join')">Join</button>
-                    </div>
-                </div>
-                <div class="list-area" id="groupList"></div>
-            </div>
-
-            <div class="page" id="pageChat">
-                <div class="page-header">
-                    <button class="btn-back" onclick="closeChat()">←</button>
-                    <div class="avatar" id="chAvatar"></div>
-                    <div class="info">
-                        <div class="title" id="chName"></div>
-                        <div class="subtitle" id="chStatus"></div>
-                    </div>
-                </div>
-                <div class="msg-list" id="msgList">
-                    <div class="msg-loading" id="loadMore" onclick="loadHistory()">
-                        Load earlier messages
-                    </div>
-                </div>
-                <div class="typing-indicator" id="typingHint" style="display: none"></div>
-                <div class="input-bar">
-                    <textarea
-                        id="msgInput"
-                        rows="1"
-                        placeholder="Type a message..."
-                        onkeydown="onMsgKey(event)"
-                    ></textarea
-                    ><button class="btn-send" id="btnSend" onclick="sendMessage()">Send</button>
+                <div class="header-actions">
+                    <button onclick="toggleTheme()" title="Toggle theme">🌓</button>
                 </div>
             </div>
+            <div class="search-wrap">
+                <input id="searchInput" placeholder="Search users..." autocomplete="off" oninput="onSearchInput()"
+                    onfocus="onSearchInput()" />
+                <div class="search-results" id="searchResults"></div>
+            </div>
+            <div class="list-area" id="convList"></div>
+        </div>
 
-            <div class="page" id="pageGroupChat">
-                <div class="page-header">
-                    <button class="btn-back" onclick="closeGroupChat()">←</button>
-                    <div class="avatar" id="gchAvatar">👥</div>
-                    <div class="info">
-                        <div class="title" id="gchName"></div>
-                        <div class="subtitle" id="gchStatus">group</div>
-                    </div>
+        <div class="page" id="pageGroups">
+            <div class="page-header">
+                <button class="btn-back" onclick="goTo('chats')">←</button>
+                <div class="info">
+                    <div class="title">Groups</div>
                 </div>
-                <div class="msg-list" id="gmsgList">
-                    <div class="msg-loading" id="gloadMore" onclick="loadGroupHistory()">
-                        Load earlier messages
-                    </div>
-                </div>
-                <div class="input-bar">
-                    <textarea
-                        id="gmsgInput"
-                        rows="1"
-                        placeholder="Type a message..."
-                        onkeydown="onGroupMsgKey(event)"
-                    ></textarea
-                    ><button class="btn-send" id="gbtnSend" onclick="sendGroupMessage()">
-                        Send
-                    </button>
+                <div class="header-actions">
+                    <button onclick="openModal('create')">+ Create</button><button
+                        onclick="openModal('join')">Join</button>
                 </div>
             </div>
+            <div class="list-area" id="groupList"></div>
+        </div>
 
-            <div class="page" id="pageMe">
-                <div class="page-header">
-                    <button class="btn-back" onclick="goTo('chats')">←</button>
-                    <div class="info">
-                        <div class="title">Profile</div>
-                    </div>
+        <div class="page" id="pageChat">
+            <div class="page-header">
+                <button class="btn-back" onclick="closeChat()">←</button>
+                <div class="avatar" id="chAvatar"></div>
+                <div class="info">
+                    <div class="title" id="chName"></div>
+                    <div class="subtitle" id="chStatus"></div>
                 </div>
-                <div
-                    class="list-area"
-                    style="
+            </div>
+            <div class="msg-list" id="msgList">
+                <div class="msg-loading" id="loadMore" onclick="loadHistory()">
+                    Load earlier messages
+                </div>
+            </div>
+            <div class="typing-indicator" id="typingHint" style="display: none"></div>
+            <div class="input-bar">
+                <textarea id="msgInput" rows="1" placeholder="Type a message..."
+                    onkeydown="onMsgKey(event)"></textarea><button class="btn-send" id="btnSend"
+                    onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <div class="page" id="pageGroupChat">
+            <div class="page-header">
+                <button class="btn-back" onclick="closeGroupChat()">←</button>
+                <div class="avatar" id="gchAvatar">👥</div>
+                <div class="info">
+                    <div class="title" id="gchName"></div>
+                    <div class="subtitle" id="gchStatus">group</div>
+                </div>
+            </div>
+            <div class="msg-list" id="gmsgList">
+                <div class="msg-loading" id="gloadMore" onclick="loadGroupHistory()">
+                    Load earlier messages
+                </div>
+            </div>
+            <div class="input-bar">
+                <textarea id="gmsgInput" rows="1" placeholder="Type a message..."
+                    onkeydown="onGroupMsgKey(event)"></textarea><button class="btn-send" id="gbtnSend"
+                    onclick="sendGroupMessage()">
+                    Send
+                </button>
+            </div>
+        </div>
+
+        <div class="page" id="pageMe">
+            <div class="page-header">
+                <button class="btn-back" onclick="goTo('chats')">←</button>
+                <div class="info">
+                    <div class="title">Profile</div>
+                </div>
+            </div>
+            <div class="list-area" style="
                         display: flex;
                         flex-direction: column;
                         align-items: center;
                         padding: 40px 20px;
                         gap: 16px;
-                    "
-                >
-                    <div
-                        class="avatar"
-                        id="meAvatar"
-                        style="width: 64px; height: 64px; font-size: 28px"
-                    ></div>
-                    <div class="title" id="meName" style="font-size: 18px"></div>
-                    <button
-                        onclick="toggleTheme()"
-                        style="
+                    ">
+                <div class="avatar" id="meAvatar" style="width: 64px; height: 64px; font-size: 28px"></div>
+                <div class="title" id="meName" style="font-size: 18px"></div>
+                <button onclick="toggleTheme()" style="
                             padding: 10px 24px;
                             border: 1px solid var(--border);
                             border-radius: var(--radius-sm);
                             font-size: 14px;
-                        "
-                    >
-                        🌓 Toggle Theme
-                    </button>
-                    <button
-                        onclick="doLogout()"
-                        style="
+                        ">
+                    🌓 Toggle Theme
+                </button>
+                <button onclick="doLogout()" style="
                             padding: 10px 24px;
                             border: 1px solid var(--danger);
                             border-radius: var(--radius-sm);
                             font-size: 14px;
                             color: var(--danger);
-                        "
-                    >
-                        Logout
-                    </button>
-                    <button
-                        id="btnDeleteAccount"
-                        onclick="doDeleteAccount()"
-                        style="
+                        ">
+                    Logout
+                </button>
+                <button id="btnDeleteAccount" onclick="doDeleteAccount()" style="
                             padding: 10px 24px;
                             border: 1px solid var(--danger);
                             border-radius: var(--radius-sm);
                             font-size: 14px;
                             color: var(--danger);
-                        "
-                    >
-                        Delete Account
-                    </button>
-                </div>
-            </div>
-
-            <div id="bottomNav" style="display: none">
-                <button id="navChats" class="active" onclick="goTo('chats')">
-                    <span class="icon">💬</span>Chats
+                        ">
+                    Delete Account
                 </button>
-                <button id="navGroups" onclick="goTo('groups')">
-                    <span class="icon">👥</span>Groups
-                </button>
-                <button id="navMe" onclick="goTo('me')"><span class="icon">👤</span>Me</button>
             </div>
         </div>
 
-        <div
-            class="modal-overlay"
-            id="modalOverlay"
-            onclick="if (event.target === this) closeModal();"
-        >
-            <div class="modal" id="modalCreateGroup">
-                <h3>Create Group</h3>
-                <label for="groupName">Group Name</label
-                ><input id="groupName" placeholder="e.g. Dev Team" maxlength="50" />
-                <div class="err" id="groupErr"></div>
-                <div class="btn-row">
-                    <button class="btn btn-outline" onclick="closeModal()">Cancel</button
-                    ><button class="btn btn-primary" onclick="doCreateGroup()">Create</button>
-                </div>
-            </div>
-            <div class="modal" id="modalJoinGroup" style="display: none">
-                <h3>Join Group</h3>
-                <label for="joinGroupId">Group ID</label
-                ><input id="joinGroupId" placeholder="Paste group UUID" />
-                <div class="err" id="joinGroupErr"></div>
-                <div class="btn-row">
-                    <button class="btn btn-outline" onclick="closeModal()">Cancel</button
-                    ><button class="btn btn-primary" onclick="doJoinGroup()">Join</button>
-                </div>
+        <div id="bottomNav" style="display: none">
+            <button id="navChats" class="active" onclick="goTo('chats')">
+                <span class="icon">💬</span>Chats
+            </button>
+            <button id="navGroups" onclick="goTo('groups')">
+                <span class="icon">👥</span>Groups
+            </button>
+            <button id="navMe" onclick="goTo('me')"><span class="icon">👤</span>Me</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay" onclick="if (event.target === this) closeModal();">
+        <div class="modal" id="modalCreateGroup">
+            <h3>Create Group</h3>
+            <label for="groupName">Group Name</label><input id="groupName" placeholder="e.g. Dev Team" maxlength="50" />
+            <div class="err" id="groupErr"></div>
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button><button class="btn btn-primary"
+                    onclick="doCreateGroup()">Create</button>
             </div>
         </div>
-
-        <!-- ====== Templates ====== -->
-        <template id="tplConvItem">
-            <div class="list-item">
-                <div class="li-avatar"></div>
-                <div class="li-info">
-                    <div class="li-name"></div>
-                    <div class="li-last"></div>
-                </div>
-                <div class="li-meta">
-                    <div class="li-time"></div>
-                </div>
+        <div class="modal" id="modalJoinGroup" style="display: none">
+            <h3>Join Group</h3>
+            <label for="joinGroupId">Group ID</label><input id="joinGroupId" placeholder="Paste group UUID" />
+            <div class="err" id="joinGroupErr"></div>
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button><button class="btn btn-primary"
+                    onclick="doJoinGroup()">Join</button>
             </div>
-        </template>
+        </div>
+    </div>
 
-        <template id="tplGroupItem">
-            <div class="list-item">
-                <div class="li-avatar">👥</div>
-                <div class="li-info">
-                    <div class="li-name"></div>
-                    <div class="li-last"></div>
-                </div>
+    <!-- ====== Templates ====== -->
+    <template id="tplConvItem">
+        <div class="list-item">
+            <div class="li-avatar"></div>
+            <div class="li-info">
+                <div class="li-name"></div>
+                <div class="li-last"></div>
             </div>
-        </template>
-
-        <template id="tplSearchItem">
-            <div class="item">
-                <div class="sr-avatar"></div>
-                <div></div>
+            <div class="li-meta">
+                <div class="li-time"></div>
             </div>
-        </template>
+        </div>
+    </template>
 
-        <template id="tplMsgRow">
-            <div class="msg-row">
-                <div class="m-avatar"></div>
-                <div>
-                    <div class="msg-bubble"></div>
-                    <div class="msg-time"></div>
-                    <div class="msg-status"></div>
-                </div>
+    <template id="tplGroupItem">
+        <div class="list-item">
+            <div class="li-avatar">👥</div>
+            <div class="li-info">
+                <div class="li-name"></div>
+                <div class="li-last"></div>
             </div>
-        </template>
+        </div>
+    </template>
 
-        <template id="tplGroupMsgRow">
-            <div class="msg-row">
-                <div class="m-avatar"></div>
-                <div>
-                    <div class="msg-bubble"></div>
-                    <div class="msg-time"></div>
-                </div>
+    <template id="tplSearchItem">
+        <div class="item">
+            <div class="sr-avatar"></div>
+            <div></div>
+        </div>
+    </template>
+
+    <template id="tplMsgRow">
+        <div class="msg-row">
+            <div class="m-avatar"></div>
+            <div>
+                <div class="msg-bubble"></div>
+                <div class="msg-time"></div>
+                <div class="msg-status"></div>
             </div>
-        </template>
+        </div>
+    </template>
 
-        <template id="tplEmptyState">
-            <div class="empty-state"></div>
-        </template>
+    <template id="tplGroupMsgRow">
+        <div class="msg-row">
+            <div class="m-avatar"></div>
+            <div>
+                <div class="msg-bubble"></div>
+                <div class="msg-time"></div>
+            </div>
+        </div>
+    </template>
 
-        <script>
-            let me = null,
-                ws = null,
-                peers = {},
-                messages = [],
-                groupMessages = [];
-            let activePeer = null,
-                activeGroup = null,
-                convCache = [],
-                unreadCounts = {};
-            let pendingMsgs = {},
-                msgById = {},
-                typingTimer = null,
-                typingTimeout = null;
-            let groupCache = [],
-                currentPage = null;
-            const PAGE_SIZE = 40;
-            const $ = (id) => document.getElementById(id);
-            const authScreen = $("authScreen"),
-                bottomNav = $("bottomNav");
-            const allPages = [
-                $("pageChats"),
-                $("pageGroups"),
-                $("pageChat"),
-                $("pageGroupChat"),
-                $("pageMe"),
-            ];
+    <template id="tplEmptyState">
+        <div class="empty-state"></div>
+    </template>
 
-            function goTo(page) {
-                allPages.forEach((p) => p.classList.remove("active"));
-                const t =
-                    page === "chats"
-                        ? $("pageChats")
-                        : page === "groups"
-                          ? $("pageGroups")
-                          : page === "chat"
+    <script>
+        let me = null,
+            ws = null,
+            peers = {},
+            messages = [],
+            groupMessages = [];
+        let activePeer = null,
+            activeGroup = null,
+            convCache = [],
+            unreadCounts = {};
+        let pendingMsgs = {},
+            msgById = {},
+            typingTimer = null,
+            typingTimeout = null;
+        let groupCache = [],
+            currentPage = null;
+        const PAGE_SIZE = 40;
+        const $ = (id) => document.getElementById(id);
+        const authScreen = $("authScreen"),
+            bottomNav = $("bottomNav");
+        const allPages = [
+            $("pageChats"),
+            $("pageGroups"),
+            $("pageChat"),
+            $("pageGroupChat"),
+            $("pageMe"),
+        ];
+
+        function goTo(page) {
+            allPages.forEach((p) => p.classList.remove("active"));
+            const t =
+                page === "chats"
+                    ? $("pageChats")
+                    : page === "groups"
+                        ? $("pageGroups")
+                        : page === "chat"
                             ? $("pageChat")
                             : page === "groupChat"
-                              ? $("pageGroupChat")
-                              : $("pageMe");
-                if (t) t.classList.add("active");
-                currentPage = page;
-                $("navChats").classList.toggle("active", page === "chats");
-                $("navGroups").classList.toggle("active", page === "groups");
-                $("navMe").classList.toggle("active", page === "me");
-                if (page === "chats") loadConversations();
-                if (page === "groups") loadGroupList();
-                if (page === "me") {
-                    $("meAvatar").textContent = me.username[0].toUpperCase();
-                    $("meName").textContent = me.username;
-                }
-                bottomNav.style.display = page === "chat" || page === "groupChat" ? "none" : "flex";
-                setTimeout(() => {
-                    const ml = page === "groupChat" ? $("gmsgList") : $("msgList");
-                    if (ml) ml.scrollTop = ml.scrollHeight;
-                }, 50);
+                                ? $("pageGroupChat")
+                                : $("pageMe");
+            if (t) t.classList.add("active");
+            currentPage = page;
+            $("navChats").classList.toggle("active", page === "chats");
+            $("navGroups").classList.toggle("active", page === "groups");
+            $("navMe").classList.toggle("active", page === "me");
+            if (page === "chats") loadConversations();
+            if (page === "groups") loadGroupList();
+            if (page === "me") {
+                $("meAvatar").textContent = me.username[0].toUpperCase();
+                $("meName").textContent = me.username;
             }
+            bottomNav.style.display = page === "chat" || page === "groupChat" ? "none" : "flex";
+            setTimeout(() => {
+                const ml = page === "groupChat" ? $("gmsgList") : $("msgList");
+                if (ml) ml.scrollTop = ml.scrollHeight;
+            }, 50);
+        }
 
-            function storageKey() {
-                return me ? "mx_status_" + me.uid : null;
+        function storageKey() {
+            return me ? "mx_status_" + me.uid : null;
+        }
+        function saveMsgStatus(id, s) {
+            const k = storageKey();
+            if (!k || !id) return;
+            try {
+                const d = JSON.parse(localStorage.getItem(k) || "{}");
+                d[id] = s;
+                const ids = Object.keys(d);
+                if (ids.length > 500)
+                    ids.slice(0, ids.length - 500).forEach((x) => delete d[x]);
+                localStorage.setItem(k, JSON.stringify(d));
+            } catch (_) { }
+        }
+        function getMsgStatus(id) {
+            const k = storageKey();
+            if (!k || !id) return null;
+            try {
+                return JSON.parse(localStorage.getItem(k) || "{}")[id] || null;
+            } catch (_) {
+                return null;
             }
-            function saveMsgStatus(id, s) {
-                const k = storageKey();
-                if (!k || !id) return;
-                try {
-                    const d = JSON.parse(localStorage.getItem(k) || "{}");
-                    d[id] = s;
-                    const ids = Object.keys(d);
-                    if (ids.length > 500)
-                        ids.slice(0, ids.length - 500).forEach((x) => delete d[x]);
-                    localStorage.setItem(k, JSON.stringify(d));
-                } catch (_) {}
-            }
-            function getMsgStatus(id) {
-                const k = storageKey();
-                if (!k || !id) return null;
-                try {
-                    return JSON.parse(localStorage.getItem(k) || "{}")[id] || null;
-                } catch (_) {
-                    return null;
-                }
-            }
+        }
 
-            function toggleTheme() {
-                document.body.classList.toggle("light");
-                localStorage.setItem(
-                    "theme",
-                    document.body.classList.contains("light") ? "light" : "dark",
-                );
-            }
-            if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
+        function toggleTheme() {
+            document.body.classList.toggle("light");
+            localStorage.setItem(
+                "theme",
+                document.body.classList.contains("light") ? "light" : "dark",
+            );
+        }
+        if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
 
-            async function api(path, opts = {}) {
-                const r = await fetch(path, {
-                    headers: { "Content-Type": "application/json" },
-                    ...opts,
+        async function api(path, opts = {}) {
+            const r = await fetch(path, {
+                headers: { "Content-Type": "application/json" },
+                ...opts,
+            });
+            return r.json();
+        }
+        function setErr(m) {
+            $("authErr").textContent = m || "";
+        }
+
+        async function doRegister() {
+            setErr();
+            const u = $("authUser").value.trim(),
+                p = $("authPass").value;
+            if (u.length < 3 || p.length < 6)
+                return setErr("Username \u22653, password \u22656 chars");
+            try {
+                const d = await api("/api/user/register", {
+                    method: "POST",
+                    body: JSON.stringify({ username: u, password: p }),
                 });
-                return r.json();
+                if (d.code === 200) setErr("Registered! Now login.");
+                else if (d.code === 409) setErr("User exists, try login.");
+                else setErr(d.msg);
+            } catch (_) {
+                setErr("Cannot reach server");
             }
-            function setErr(m) {
-                $("authErr").textContent = m || "";
-            }
-
-            async function doRegister() {
-                setErr();
-                const u = $("authUser").value.trim(),
-                    p = $("authPass").value;
-                if (u.length < 3 || p.length < 6)
-                    return setErr("Username \u22653, password \u22656 chars");
-                try {
-                    const d = await api("/api/user/register", {
-                        method: "POST",
-                        body: JSON.stringify({ username: u, password: p }),
-                    });
-                    if (d.code === 200) setErr("Registered! Now login.");
-                    else if (d.code === 409) setErr("User exists, try login.");
-                    else setErr(d.msg);
-                } catch (_) {
-                    setErr("Cannot reach server");
-                }
-            }
-            async function doLogin() {
-                setErr();
-                const u = $("authUser").value.trim(),
-                    p = $("authPass").value;
-                if (!u || !p) return setErr("Fill all fields");
-                try {
-                    const d = await api("/api/user/login", {
-                        method: "POST",
-                        body: JSON.stringify({ username: u, password: p }),
-                    });
-                    if (d.code !== 200) return setErr(d.msg);
-                    try {
-                        me = {
-                            uid: JSON.parse(atob(d.data.split(".")[1])).user_id,
-                            username: u,
-                            token: d.data,
-                        };
-                    } catch (_) {
-                        return setErr("Bad token");
-                    }
-                    connectWS();
-                } catch (_) {
-                    setErr("Cannot reach server");
-                }
-            }
-
-            function doLogout() {
-                clearTimeout(reconnectTimer);
-                if (ws) ws.close();
-                me = null;
-                ws = null;
-                peers = {};
-                messages = [];
-                groupMessages = [];
-                activePeer = null;
-                activeGroup = null;
-                convCache = [];
-                groupCache = [];
-                unreadCounts = {};
-                pendingMsgs = {};
-                msgById = {};
-                authScreen.style.display = "flex";
-                bottomNav.style.display = "none";
-                allPages.forEach((p) => {
-                    if (p) p.classList.remove("active");
+        }
+        async function doLogin() {
+            setErr();
+            const u = $("authUser").value.trim(),
+                p = $("authPass").value;
+            if (!u || !p) return setErr("Fill all fields");
+            try {
+                const d = await api("/api/user/login", {
+                    method: "POST",
+                    body: JSON.stringify({ username: u, password: p }),
                 });
-                currentPage = null;
-                $("navMe").classList.remove("active");
-            }
-            async function doDeleteAccount() {
-                if (!confirm("Delete your account and all data? This cannot be undone.")) return;
-                const b = $("btnDeleteAccount");
-                b.textContent = "Deleting...";
-                b.disabled = true;
+                if (d.code !== 200) return setErr(d.msg);
                 try {
-                    const d = await api("/api/user/delete", {
-                        method: "POST",
-                        body: JSON.stringify({ token: me.token }),
-                    });
-                    if (d.code === 200) {
-                        alert("Account deleted.");
-                        doLogout();
-                    } else {
-                        alert("Failed: " + d.msg);
-                        b.textContent = "Delete Account";
-                        b.disabled = false;
-                    }
+                    me = {
+                        uid: JSON.parse(atob(d.data.split(".")[1])).user_id,
+                        username: u,
+                        token: d.data,
+                    };
                 } catch (_) {
-                    alert("Cannot reach server");
+                    return setErr("Bad token");
+                }
+                connectWS();
+            } catch (_) {
+                setErr("Cannot reach server");
+            }
+        }
+
+        function doLogout() {
+            clearTimeout(reconnectTimer);
+            if (ws) ws.close();
+            me = null;
+            ws = null;
+            peers = {};
+            messages = [];
+            groupMessages = [];
+            activePeer = null;
+            activeGroup = null;
+            convCache = [];
+            groupCache = [];
+            unreadCounts = {};
+            pendingMsgs = {};
+            msgById = {};
+            authScreen.style.display = "flex";
+            bottomNav.style.display = "none";
+            allPages.forEach((p) => {
+                if (p) p.classList.remove("active");
+            });
+            currentPage = null;
+            $("navMe").classList.remove("active");
+        }
+        async function doDeleteAccount() {
+            if (!confirm("Delete your account and all data? This cannot be undone.")) return;
+            const b = $("btnDeleteAccount");
+            b.textContent = "Deleting...";
+            b.disabled = true;
+            try {
+                const d = await api("/api/user/delete", {
+                    method: "POST",
+                    body: JSON.stringify({ token: me.token }),
+                });
+                if (d.code === 200) {
+                    alert("Account deleted.");
+                    doLogout();
+                } else {
+                    alert("Failed: " + d.msg);
                     b.textContent = "Delete Account";
                     b.disabled = false;
                 }
+            } catch (_) {
+                alert("Cannot reach server");
+                b.textContent = "Delete Account";
+                b.disabled = false;
             }
+        }
 
-            let reconnectTimer = null;
-            function uuid() {
-                if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-                return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-                    const r = (Math.random() * 16) | 0;
-                    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
-                });
+        let reconnectTimer = null;
+        function uuid() {
+            if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+            return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+                const r = (Math.random() * 16) | 0;
+                return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+            });
+        }
+        function connectWS() {
+            if (!me) return;
+            if (ws) {
+                ws.onclose = null;
+                if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+                    ws.close();
             }
-            function connectWS() {
-                if (!me) return;
-                if (ws) {
-                    ws.onclose = null;
-                    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
-                        ws.close();
-                }
-                ws = new WebSocket(
-                    `ws://${location.host}/im/ws?token=${encodeURIComponent(me.token)}`,
-                );
-                ws.onopen = () => {
-                    clearTimeout(reconnectTimer);
-                    authScreen.style.display = "none";
-                    bottomNav.style.display = "flex";
-                    $("myAvatar").textContent = me.username[0].toUpperCase();
-                    $("myName").textContent = me.username;
-                    loadConversations();
-                    goTo("chats");
-                };
-                ws.onclose = () => {
-                    ws = null;
-                    const s = $("chStatus");
-                    if (s) {
-                        s.textContent = "reconnecting...";
-                        s.style.color = "var(--danger)";
-                    }
-                    const gs = $("gchStatus");
-                    if (gs) {
-                        gs.textContent = "reconnecting...";
-                        gs.style.color = "var(--danger)";
-                    }
-                    if (!me) return;
-                    const d = reconnectTimer ? 5000 : 2000;
-                    reconnectTimer = setTimeout(connectWS, d);
-                };
-                ws.onmessage = (e) => {
-                    try {
-                        const m = JSON.parse(e.data);
-                        if (m.cmd === "private_push") handlePush(m.data);
-                        else if (m.cmd === "group_push") handleGroupPush(m.data);
-                        else if (m.cmd === "private_chat_ack") handleAck(m);
-                        else if (m.cmd === "delivery_update") handleDeliveryUpdate(m);
-                        else if (m.cmd === "typing") handleTyping(m);
-                        else if (m.cmd === "kicked") {
-                            $("authErr").textContent = "Logged in from another device";
-                            doLogout();
-                        }
-                    } catch (_) {}
-                };
-            }
-
-            function handlePush(d) {
-                const p = d.from_uid === me.uid ? d.to_uid : d.from_uid;
-                if (!peers[p] || peers[p].username === "?")
-                    peers[p] = { username: d.from_uid === me.uid ? "You" : d.from_name || "?" };
-                if (activePeer === p && currentPage === "chat") {
-                    appendMsg(
-                        {
-                            msg_id: Date.now(),
-                            from_uid: d.from_uid,
-                            to_uid: d.to_uid,
-                            content: d.content,
-                            msg_type: d.msg_type,
-                            send_time: d.send_time,
-                        },
-                        null,
-                        $("msgList"),
-                    );
-                    // Mark peer's messages as seen since we're viewing this chat
-                    if (ws && ws.readyState === 1)
-                        ws.send(JSON.stringify({ cmd: "mark_seen", seq: 0, data: { to_uid: p } }));
-                    $("chStatus").textContent = "online";
-                    $("chStatus").style.color = "var(--accent)";
-                } else {
-                    unreadCounts[p] = (unreadCounts[p] || 0) + 1;
-                    renderConvList();
-                }
+            ws = new WebSocket(
+                `ws://${location.host}/im/ws?token=${encodeURIComponent(me.token)}`,
+            );
+            ws.onopen = () => {
+                clearTimeout(reconnectTimer);
+                authScreen.style.display = "none";
+                bottomNav.style.display = "flex";
+                $("myAvatar").textContent = me.username[0].toUpperCase();
+                $("myName").textContent = me.username;
                 loadConversations();
-            }
-            function handleGroupPush(d) {
-                if (
-                    activeGroup === d.group_id &&
-                    currentPage === "groupChat" &&
-                    d.from_uid !== me.uid
-                )
-                    appendGroupMsg(
-                        {
-                            msg_id: Date.now(),
-                            group_id: d.group_id,
-                            from_uid: d.from_uid,
-                            from_name: d.from_name,
-                            content: d.content,
-                            msg_type: d.msg_type,
-                            send_time: d.send_time,
-                        },
-                        $("gmsgList"),
-                    );
-            }
-
-            function handleAck(m) {
-                let e = pendingMsgs[m.seq];
-                if (!e) {
-                    for (const k of Object.keys(pendingMsgs)) {
-                        if (Number(k) === Number(m.seq)) {
-                            e = pendingMsgs[k];
-                            break;
-                        }
-                    }
-                }
-                if (!e) return;
-                const s = e.el.querySelector(".msg-status");
-                if (m.data && m.data.msg_id) {
-                    e.msg.msg_id = m.data.msg_id;
-                    msgById[m.data.msg_id] = e.el;
-                }
-                if (m.data && m.data.delivered) {
-                    if (s) { s.innerHTML = '<span class="delivered">\u2713 Read</span>'; saveMsgStatus(m.data.msg_id, 'read') }
-                    $("chStatus").textContent = "online";
-                    $("chStatus").style.color = "var(--accent)";
-                } else {
-                    if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
-                    $("chStatus").textContent = "offline";
-                    $("chStatus").style.color = "var(--text2)";
-                }
-                delete pendingMsgs[m.seq];
-            }
-            function handleDeliveryUpdate(m) {
-                const ids = m.data && m.data.msg_ids;
-                if (!ids) return;
-                for (const mid of ids) {
-                    const el = msgById[mid];
-                    if (!el) continue;
-                    const s = el.querySelector(".msg-status");
-                    if (s) {
-                        s.innerHTML = '<span class="delivered">\u2713 Read</span>';
-                        saveMsgStatus(mid, "read");
-                    }
-                }
-            }
-            function handleTyping(m) {
-                const f = m.data && m.data.from_uid;
-                if (!f || activePeer !== f || currentPage !== "chat") return;
-                const h = $("typingHint");
-                h.textContent = ((peers[f] && peers[f].username) || "?") + " is typing...";
-                h.style.display = "block";
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    h.style.display = "none";
-                }, 3000);
-            }
-            function sendTyping() {
-                if (!activePeer || !ws || ws.readyState !== 1) return;
-                ws.send(JSON.stringify({ cmd: "typing", seq: 0, data: { to_uid: activePeer } }));
-            }
-
-            async function loadConversations() {
-                if (!me) return;
-                try {
-                    const d = await api("/api/conversations?token=" + encodeURIComponent(me.token));
-                    if (d.code !== 200) return;
-                    convCache = d.data || [];
-                    for (const c of convCache) {
-                        peers[c.peer_uid] = { username: c.peer_name };
-                    }
-                    renderConvList();
-                } catch (_) {}
-            }
-            function escHtml(s) {
-                const d = document.createElement("div");
-                d.textContent = s || "";
-                return d.innerHTML;
-            }
-            // Clone a <template> and return its firstElementChild
-            function tpl(id) {
-                return $("tpl" + id).content.firstElementChild.cloneNode(true);
-            }
-
-            function renderConvList() {
-                const el = $("convList");
-                el.replaceChildren();
-                if (convCache.length === 0) {
-                    const d = tpl("EmptyState");
-                    d.innerHTML = "No conversations yet.<br>Search for users to start chatting.";
-                    el.appendChild(d);
-                    return;
-                }
-                for (const c of convCache) {
-                    const item = tpl("ConvItem");
-                    item.querySelector(".li-avatar").textContent = (c.peer_name ||
-                        "?")[0].toUpperCase();
-                    const nameEl = item.querySelector(".li-name");
-                    nameEl.textContent = c.peer_name;
-                    if (unreadCounts[c.peer_uid]) {
-                        const badge = document.createElement("span");
-                        badge.className = "badge";
-                        badge.textContent = unreadCounts[c.peer_uid];
-                        nameEl.appendChild(badge);
-                    }
-                    item.querySelector(".li-last").textContent = c.last_msg;
-                    item.querySelector(".li-time").textContent = new Date(
-                        c.last_time,
-                    ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                    item.onclick = () => openChat(c.peer_uid, c.peer_name);
-                    el.appendChild(item);
-                }
-            }
-
-            function openChat(uid, name) {
-                activePeer = uid;
-                activeGroup = null;
-                if (unreadCounts[uid]) {
-                    delete unreadCounts[uid];
-                }
-                if (!peers[uid] || peers[uid].username === "?") peers[uid] = { username: name };
-                $("chAvatar").textContent = ((peers[uid] && peers[uid].username) ||
-                    name ||
-                    "?")[0].toUpperCase();
-                $("chName").textContent = (peers[uid] && peers[uid].username) || name;
-                $("chStatus").textContent = "";
-                $("chStatus").style.color = "";
-                messages = [];
-                const lm = $("loadMore");
-                $("msgList").replaceChildren(lm);
-                lm.style.display = "block";
-                $("loadMore").textContent = "Load earlier messages";
-                $("loadMore").style.cursor = "pointer";
-                $("msgInput").value = "";
-                $("typingHint").style.display = "none";
-                clearTimeout(typingTimeout);
-                goTo("chat");
-                loadHistory();
-            }
-            function closeChat() {
-                activePeer = null;
-                clearTimeout(typingTimeout);
-                $("typingHint").style.display = "none";
-                messages = [];
                 goTo("chats");
-                renderConvList();
-                setTimeout(loadConversations, 300);
-            }
+            };
+            ws.onclose = () => {
+                ws = null;
+                const s = $("chStatus");
+                if (s) {
+                    s.textContent = "reconnecting...";
+                    s.style.color = "var(--danger)";
+                }
+                const gs = $("gchStatus");
+                if (gs) {
+                    gs.textContent = "reconnecting...";
+                    gs.style.color = "var(--danger)";
+                }
+                if (!me) return;
+                const d = reconnectTimer ? 5000 : 2000;
+                reconnectTimer = setTimeout(connectWS, d);
+            };
+            ws.onmessage = (e) => {
+                try {
+                    const m = JSON.parse(e.data);
+                    if (m.cmd === "private_push") handlePush(m.data);
+                    else if (m.cmd === "group_push") handleGroupPush(m.data);
+                    else if (m.cmd === "private_chat_ack") handleAck(m);
+                    else if (m.cmd === "delivery_update") handleDeliveryUpdate(m);
+                    else if (m.cmd === "typing") handleTyping(m);
+                    else if (m.cmd === "kicked") {
+                        $("authErr").textContent = "Logged in from another device";
+                        doLogout();
+                    }
+                } catch (_) { }
+            };
+        }
 
-            async function loadHistory() {
-                if (!activePeer || !me) return;
-                const before = messages.length > 0 ? messages[0].msg_id : null;
-                let url =
-                    "/api/message/history?token=" +
-                    encodeURIComponent(me.token) +
-                    "&peer_uid=" +
-                    activePeer +
-                    "&limit=" +
-                    PAGE_SIZE;
-                if (before) url += "&before=" + before;
-                const d = await api(url),
-                    lm = $("loadMore");
-                if (d.code !== 200 || !d.data) {
-                    lm.textContent = "No messages yet";
-                    lm.style.cursor = "default";
-                    return;
-                }
-                const items = d.data;
-                if (items.length === 0) {
-                    lm.textContent = "No earlier messages";
-                    lm.style.cursor = "default";
-                    return;
-                }
-                if (items.length < PAGE_SIZE) {
-                    lm.textContent = "All messages loaded";
-                    lm.style.cursor = "default";
-                } else {
-                    lm.textContent = "Load earlier messages";
-                    lm.style.cursor = "pointer";
-                }
-                for (let i = 0; i < items.length; i++) messages.unshift(items[i]);
-                renderMessages();
-            }
-            function renderMessages() {
-                const ml = $("msgList"),
-                    lm = $("loadMore");
-                ml.replaceChildren(lm);
-                for (const m of messages) appendMsg(m, null, ml);
-                ml.scrollTop = ml.scrollHeight;
-            }
-
-            function appendMsg(m, s, ml) {
-                const isMine = m.from_uid === me.uid;
-                const nm = isMine
-                    ? me.username
-                    : (peers[m.from_uid] && peers[m.from_uid].username) || "?";
-                const t = new Date(Number(m.send_time)).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                });
-                if (!s && isMine && m.msg_id) {
-                    const sv = getMsgStatus(m.msg_id);
-                    if (sv === "read") s = '<span class="delivered">\u2713 Read</span>';
-                    else if (m.seen) s = '<span class="delivered">\u2713 Read</span>';
-                    else s = '<span class="undelivered">\u25F7 Sent</span>';
-                }
-                const div = tpl("MsgRow");
-                if (isMine) div.classList.add("mine");
-                div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
-                div.querySelector(".msg-bubble").textContent = m.content;
-                div.querySelector(".msg-time").textContent = t;
-                const status = div.querySelector(".msg-status");
-                if (s) status.innerHTML = s;
-                ml.appendChild(div);
-                ml.scrollTop = ml.scrollHeight;
-                if (m.msg_id && isMine) msgById[m.msg_id] = div;
-                return div;
-            }
-
-            function sendMessage() {
-                const b = $("btnSend"),
-                    c = $("msgInput").value.trim();
-                if (!activePeer) {
-                    b.textContent = "Open a chat first";
-                    b.style.background = "var(--danger)";
-                    setTimeout(() => {
-                        b.textContent = "Send";
-                        b.style.background = "var(--primary)";
-                    }, 1500);
-                    return;
-                }
-                if (!c) return;
-                if (!ws || ws.readyState !== 1) {
-                    b.textContent = "Reconnecting...";
-                    b.style.background = "var(--danger)";
-                    connectWS();
-                    setTimeout(() => {
-                        b.textContent = "Send";
-                        b.style.background = "var(--primary)";
-                    }, 2000);
-                    return;
-                }
-                const seq = Date.now(),
-                    cid = uuid(),
-                    msg = {
-                        msg_id: seq,
-                        from_uid: me.uid,
-                        to_uid: activePeer,
-                        content: c,
-                        msg_type: 1,
-                        send_time: Date.now(),
+        function handlePush(d) {
+            const p = d.from_uid === me.uid ? d.to_uid : d.from_uid;
+            if (!peers[p] || peers[p].username === "?")
+                peers[p] = { username: d.from_uid === me.uid ? "You" : d.from_name || "?" };
+            if (activePeer === p && currentPage === "chat") {
+                appendMsg(
+                    {
+                        msg_id: Date.now(),
+                        from_uid: d.from_uid,
+                        to_uid: d.to_uid,
+                        content: d.content,
+                        msg_type: d.msg_type,
+                        send_time: d.send_time,
                     },
-                    el = appendMsg(
-                        msg,
-                        '<span class="pending">\u25F7 Sending...</span>',
-                        $("msgList"),
-                    );
-                pendingMsgs[seq] = { el, msg };
-                ws.send(
-                    JSON.stringify({
-                        cmd: "private_chat",
-                        seq,
-                        data: { to_uid: activePeer, content: c, msg_type: 1, client_msg_id: cid },
-                    }),
+                    null,
+                    $("msgList"),
                 );
-                $("msgInput").value = "";
-                $("msgInput").style.height = "auto";
-                $("msgInput").focus();
+                // Mark peer's messages as seen since we're viewing this chat
+                if (ws && ws.readyState === 1)
+                    ws.send(JSON.stringify({ cmd: "mark_seen", seq: 0, data: { to_uid: p } }));
+                $("chStatus").textContent = "online";
+                $("chStatus").style.color = "var(--accent)";
+            } else {
+                unreadCounts[p] = (unreadCounts[p] || 0) + 1;
+                renderConvList();
             }
-            function onMsgKey(e) {
-                if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                    return;
-                }
-                clearTimeout(typingTimer);
-                typingTimer = setTimeout(sendTyping, 500);
-                setTimeout(() => {
-                    const ta = $("msgInput");
-                    ta.style.height = "auto";
-                    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
-                }, 0);
-            }
-
-            function openGroupChat(gid, gn) {
-                activeGroup = gid;
-                activePeer = null;
-                if (!peers[gid]) peers[gid] = { username: gn };
-                $("gchName").textContent = gn;
-                groupMessages = [];
-                const glm = $("gloadMore");
-                $("gmsgList").replaceChildren(glm);
-                glm.style.display = "block";
-                $("gloadMore").textContent = "Load earlier messages";
-                $("gloadMore").style.cursor = "pointer";
-                $("gmsgInput").value = "";
-                goTo("groupChat");
-                loadGroupHistory();
-            }
-            function closeGroupChat() {
-                activeGroup = null;
-                groupMessages = [];
-                goTo("groups");
-                loadGroupList();
-            }
-
-            async function loadGroupHistory() {
-                if (!activeGroup || !me) return;
-                const before = groupMessages.length > 0 ? groupMessages[0].msg_id : null;
-                let url =
-                    "/api/group/history?token=" +
-                    encodeURIComponent(me.token) +
-                    "&group_id=" +
-                    activeGroup +
-                    "&limit=" +
-                    PAGE_SIZE;
-                if (before) url += "&before=" + before;
-                const d = await api(url),
-                    lm = $("gloadMore");
-                if (d.code !== 200 || !d.data) {
-                    lm.textContent = "No messages";
-                    lm.style.cursor = "default";
-                    return;
-                }
-                const items = d.data;
-                if (items.length === 0) {
-                    lm.textContent = "No earlier messages";
-                    lm.style.cursor = "default";
-                    return;
-                }
-                if (items.length < PAGE_SIZE) {
-                    lm.textContent = "All messages loaded";
-                    lm.style.cursor = "default";
-                } else {
-                    lm.textContent = "Load earlier messages";
-                    lm.style.cursor = "pointer";
-                }
-                for (let i = 0; i < items.length; i++) groupMessages.unshift(items[i]);
-                renderGroupMessages();
-            }
-            function renderGroupMessages() {
-                const ml = $("gmsgList"),
-                    glm = $("gloadMore");
-                ml.replaceChildren(glm);
-                for (const m of groupMessages) appendGroupMsg(m, ml);
-                ml.scrollTop = ml.scrollHeight;
-            }
-            function appendGroupMsg(m, ml) {
-                const isMine = m.from_uid === me.uid;
-                const nm = m.from_name || "?";
-                const t = new Date(Number(m.send_time)).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                });
-                const div = tpl("GroupMsgRow");
-                if (isMine) div.classList.add("mine");
-                div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
-                const bubble = div.querySelector(".msg-bubble");
-                if (isMine) {
-                    bubble.textContent = m.content;
-                } else {
-                    const b = document.createElement("b");
-                    b.textContent = nm;
-                    bubble.appendChild(b);
-                    bubble.appendChild(document.createElement("br"));
-                    bubble.appendChild(document.createTextNode(m.content));
-                }
-                div.querySelector(".msg-time").textContent = t;
-                ml.appendChild(div);
-                ml.scrollTop = ml.scrollHeight;
-            }
-            function sendGroupMessage() {
-                if (!ws || ws.readyState !== 1 || !activeGroup) return;
-                const c = $("gmsgInput").value.trim();
-                if (!c) return;
-                const cid = uuid();
-                ws.send(
-                    JSON.stringify({
-                        cmd: "group_chat",
-                        seq: Date.now(),
-                        data: {
-                            group_id: activeGroup,
-                            content: c,
-                            msg_type: 1,
-                            client_msg_id: cid,
-                        },
-                    }),
-                );
+            loadConversations();
+        }
+        function handleGroupPush(d) {
+            if (
+                activeGroup === d.group_id &&
+                currentPage === "groupChat" &&
+                d.from_uid !== me.uid
+            )
                 appendGroupMsg(
                     {
                         msg_id: Date.now(),
-                        group_id: activeGroup,
-                        from_uid: me.uid,
-                        from_name: me.username,
-                        content: c,
-                        msg_type: 1,
-                        send_time: Date.now(),
+                        group_id: d.group_id,
+                        from_uid: d.from_uid,
+                        from_name: d.from_name,
+                        content: d.content,
+                        msg_type: d.msg_type,
+                        send_time: d.send_time,
                     },
                     $("gmsgList"),
                 );
-                $("gmsgInput").value = "";
-                $("gmsgInput").style.height = "auto";
-                $("gmsgInput").focus();
-            }
-            function onGroupMsgKey(e) {
-                if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendGroupMessage();
-                    return;
-                }
-                setTimeout(() => {
-                    const ta = $("gmsgInput");
-                    ta.style.height = "auto";
-                    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
-                }, 0);
-            }
+        }
 
-            async function loadGroupList() {
-                if (!me) return;
-                const d = await api("/api/group/list?token=" + encodeURIComponent(me.token));
-                if (d.code !== 200) return;
-                groupCache = d.data || [];
-                renderGroupList();
-            }
-            function renderGroupList() {
-                const el = $("groupList");
-                el.replaceChildren();
-                if (groupCache.length === 0) {
-                    const d = tpl("EmptyState");
-                    d.innerHTML = "No groups yet.<br>Create or join a group to start.";
-                    el.appendChild(d);
-                    return;
+        function handleAck(m) {
+            let e = pendingMsgs[m.seq];
+            if (!e) {
+                for (const k of Object.keys(pendingMsgs)) {
+                    if (Number(k) === Number(m.seq)) {
+                        e = pendingMsgs[k];
+                        break;
+                    }
                 }
-                for (const g of groupCache) {
-                    const item = tpl("GroupItem");
-                    item.querySelector(".li-name").textContent = g.name;
-                    item.querySelector(".li-last").textContent = g.member_count + " members";
-                    item.onclick = () => openGroupChat(g.group_id, g.name);
+            }
+            if (!e) return;
+            const s = e.el.querySelector(".msg-status");
+            if (m.data && m.data.msg_id) {
+                e.msg.msg_id = m.data.msg_id;
+                msgById[m.data.msg_id] = e.el;
+            }
+            if (m.data && m.data.delivered) {
+                if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
+                $("chStatus").textContent = "online";
+                $("chStatus").style.color = "var(--accent)";
+            } else {
+                if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
+                $("chStatus").textContent = "offline";
+                $("chStatus").style.color = "var(--text2)";
+            }
+            delete pendingMsgs[m.seq];
+        }
+        function handleDeliveryUpdate(m) {
+            const ids = m.data && m.data.msg_ids;
+            if (!ids) return;
+            for (const mid of ids) {
+                const el = msgById[mid];
+                if (!el) continue;
+                const s = el.querySelector(".msg-status");
+                if (s) {
+                    s.innerHTML = '<span class="delivered">\u2713 Read</span>';
+                    saveMsgStatus(mid, "read");
+                }
+            }
+        }
+        function handleTyping(m) {
+            const f = m.data && m.data.from_uid;
+            if (!f || activePeer !== f || currentPage !== "chat") return;
+            const h = $("typingHint");
+            h.textContent = ((peers[f] && peers[f].username) || "?") + " is typing...";
+            h.style.display = "block";
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                h.style.display = "none";
+            }, 3000);
+        }
+        function sendTyping() {
+            if (!activePeer || !ws || ws.readyState !== 1) return;
+            ws.send(JSON.stringify({ cmd: "typing", seq: 0, data: { to_uid: activePeer } }));
+        }
+
+        async function loadConversations() {
+            if (!me) return;
+            try {
+                const d = await api("/api/conversations?token=" + encodeURIComponent(me.token));
+                if (d.code !== 200) return;
+                convCache = d.data || [];
+                for (const c of convCache) {
+                    peers[c.peer_uid] = { username: c.peer_name };
+                }
+                renderConvList();
+            } catch (_) { }
+        }
+        function escHtml(s) {
+            const d = document.createElement("div");
+            d.textContent = s || "";
+            return d.innerHTML;
+        }
+        // Clone a <template> and return its firstElementChild
+        function tpl(id) {
+            return $("tpl" + id).content.firstElementChild.cloneNode(true);
+        }
+
+        function renderConvList() {
+            const el = $("convList");
+            el.replaceChildren();
+            if (convCache.length === 0) {
+                const d = tpl("EmptyState");
+                d.innerHTML = "No conversations yet.<br>Search for users to start chatting.";
+                el.appendChild(d);
+                return;
+            }
+            for (const c of convCache) {
+                const item = tpl("ConvItem");
+                item.querySelector(".li-avatar").textContent = (c.peer_name ||
+                    "?")[0].toUpperCase();
+                const nameEl = item.querySelector(".li-name");
+                nameEl.textContent = c.peer_name;
+                if (unreadCounts[c.peer_uid]) {
+                    const badge = document.createElement("span");
+                    badge.className = "badge";
+                    badge.textContent = unreadCounts[c.peer_uid];
+                    nameEl.appendChild(badge);
+                }
+                item.querySelector(".li-last").textContent = c.last_msg;
+                item.querySelector(".li-time").textContent = new Date(
+                    c.last_time,
+                ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                item.onclick = () => openChat(c.peer_uid, c.peer_name);
+                el.appendChild(item);
+            }
+        }
+
+        function openChat(uid, name) {
+            activePeer = uid;
+            activeGroup = null;
+            if (unreadCounts[uid]) {
+                delete unreadCounts[uid];
+            }
+            if (!peers[uid] || peers[uid].username === "?") peers[uid] = { username: name };
+            $("chAvatar").textContent = ((peers[uid] && peers[uid].username) ||
+                name ||
+                "?")[0].toUpperCase();
+            $("chName").textContent = (peers[uid] && peers[uid].username) || name;
+            $("chStatus").textContent = "";
+            $("chStatus").style.color = "";
+            messages = [];
+            const lm = $("loadMore");
+            $("msgList").replaceChildren(lm);
+            lm.style.display = "block";
+            $("loadMore").textContent = "Load earlier messages";
+            $("loadMore").style.cursor = "pointer";
+            $("msgInput").value = "";
+            $("typingHint").style.display = "none";
+            clearTimeout(typingTimeout);
+            goTo("chat");
+            loadHistory();
+        }
+        function closeChat() {
+            activePeer = null;
+            clearTimeout(typingTimeout);
+            $("typingHint").style.display = "none";
+            messages = [];
+            goTo("chats");
+            renderConvList();
+            setTimeout(loadConversations, 300);
+        }
+
+        async function loadHistory() {
+            if (!activePeer || !me) return;
+            const before = messages.length > 0 ? messages[0].msg_id : null;
+            let url =
+                "/api/message/history?token=" +
+                encodeURIComponent(me.token) +
+                "&peer_uid=" +
+                activePeer +
+                "&limit=" +
+                PAGE_SIZE;
+            if (before) url += "&before=" + before;
+            const d = await api(url),
+                lm = $("loadMore");
+            if (d.code !== 200 || !d.data) {
+                lm.textContent = "No messages yet";
+                lm.style.cursor = "default";
+                return;
+            }
+            const items = d.data;
+            if (items.length === 0) {
+                lm.textContent = "No earlier messages";
+                lm.style.cursor = "default";
+                return;
+            }
+            if (items.length < PAGE_SIZE) {
+                lm.textContent = "All messages loaded";
+                lm.style.cursor = "default";
+            } else {
+                lm.textContent = "Load earlier messages";
+                lm.style.cursor = "pointer";
+            }
+            for (let i = 0; i < items.length; i++) messages.unshift(items[i]);
+            renderMessages();
+        }
+        function renderMessages() {
+            const ml = $("msgList"),
+                lm = $("loadMore");
+            ml.replaceChildren(lm);
+            for (const m of messages) appendMsg(m, null, ml);
+            ml.scrollTop = ml.scrollHeight;
+        }
+
+        function appendMsg(m, s, ml) {
+            const isMine = m.from_uid === me.uid;
+            const nm = isMine
+                ? me.username
+                : (peers[m.from_uid] && peers[m.from_uid].username) || "?";
+            const t = new Date(Number(m.send_time)).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+            if (!s && isMine && m.msg_id) {
+                const sv = getMsgStatus(m.msg_id);
+                if (sv === "read") s = '<span class="delivered">\u2713 Read</span>';
+                else if (m.seen) s = '<span class="delivered">\u2713 Read</span>';
+                else s = '<span class="undelivered">\u25F7 Sent</span>';
+            }
+            const div = tpl("MsgRow");
+            if (isMine) div.classList.add("mine");
+            div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
+            div.querySelector(".msg-bubble").textContent = m.content;
+            div.querySelector(".msg-time").textContent = t;
+            const status = div.querySelector(".msg-status");
+            if (s) status.innerHTML = s;
+            ml.appendChild(div);
+            ml.scrollTop = ml.scrollHeight;
+            if (m.msg_id && isMine) msgById[m.msg_id] = div;
+            return div;
+        }
+
+        function sendMessage() {
+            const b = $("btnSend"),
+                c = $("msgInput").value.trim();
+            if (!activePeer) {
+                b.textContent = "Open a chat first";
+                b.style.background = "var(--danger)";
+                setTimeout(() => {
+                    b.textContent = "Send";
+                    b.style.background = "var(--primary)";
+                }, 1500);
+                return;
+            }
+            if (!c) return;
+            if (!ws || ws.readyState !== 1) {
+                b.textContent = "Reconnecting...";
+                b.style.background = "var(--danger)";
+                connectWS();
+                setTimeout(() => {
+                    b.textContent = "Send";
+                    b.style.background = "var(--primary)";
+                }, 2000);
+                return;
+            }
+            const seq = Date.now(),
+                cid = uuid(),
+                msg = {
+                    msg_id: seq,
+                    from_uid: me.uid,
+                    to_uid: activePeer,
+                    content: c,
+                    msg_type: 1,
+                    send_time: Date.now(),
+                },
+                el = appendMsg(
+                    msg,
+                    '<span class="pending">\u25F7 Sending...</span>',
+                    $("msgList"),
+                );
+            pendingMsgs[seq] = { el, msg };
+            ws.send(
+                JSON.stringify({
+                    cmd: "private_chat",
+                    seq,
+                    data: { to_uid: activePeer, content: c, msg_type: 1, client_msg_id: cid },
+                }),
+            );
+            $("msgInput").value = "";
+            $("msgInput").style.height = "auto";
+            $("msgInput").focus();
+        }
+        function onMsgKey(e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+                return;
+            }
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(sendTyping, 500);
+            setTimeout(() => {
+                const ta = $("msgInput");
+                ta.style.height = "auto";
+                ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+            }, 0);
+        }
+
+        function openGroupChat(gid, gn) {
+            activeGroup = gid;
+            activePeer = null;
+            if (!peers[gid]) peers[gid] = { username: gn };
+            $("gchName").textContent = gn;
+            groupMessages = [];
+            const glm = $("gloadMore");
+            $("gmsgList").replaceChildren(glm);
+            glm.style.display = "block";
+            $("gloadMore").textContent = "Load earlier messages";
+            $("gloadMore").style.cursor = "pointer";
+            $("gmsgInput").value = "";
+            goTo("groupChat");
+            loadGroupHistory();
+        }
+        function closeGroupChat() {
+            activeGroup = null;
+            groupMessages = [];
+            goTo("groups");
+            loadGroupList();
+        }
+
+        async function loadGroupHistory() {
+            if (!activeGroup || !me) return;
+            const before = groupMessages.length > 0 ? groupMessages[0].msg_id : null;
+            let url =
+                "/api/group/history?token=" +
+                encodeURIComponent(me.token) +
+                "&group_id=" +
+                activeGroup +
+                "&limit=" +
+                PAGE_SIZE;
+            if (before) url += "&before=" + before;
+            const d = await api(url),
+                lm = $("gloadMore");
+            if (d.code !== 200 || !d.data) {
+                lm.textContent = "No messages";
+                lm.style.cursor = "default";
+                return;
+            }
+            const items = d.data;
+            if (items.length === 0) {
+                lm.textContent = "No earlier messages";
+                lm.style.cursor = "default";
+                return;
+            }
+            if (items.length < PAGE_SIZE) {
+                lm.textContent = "All messages loaded";
+                lm.style.cursor = "default";
+            } else {
+                lm.textContent = "Load earlier messages";
+                lm.style.cursor = "pointer";
+            }
+            for (let i = 0; i < items.length; i++) groupMessages.unshift(items[i]);
+            renderGroupMessages();
+        }
+        function renderGroupMessages() {
+            const ml = $("gmsgList"),
+                glm = $("gloadMore");
+            ml.replaceChildren(glm);
+            for (const m of groupMessages) appendGroupMsg(m, ml);
+            ml.scrollTop = ml.scrollHeight;
+        }
+        function appendGroupMsg(m, ml) {
+            const isMine = m.from_uid === me.uid;
+            const nm = m.from_name || "?";
+            const t = new Date(Number(m.send_time)).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+            const div = tpl("GroupMsgRow");
+            if (isMine) div.classList.add("mine");
+            div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
+            const bubble = div.querySelector(".msg-bubble");
+            if (isMine) {
+                bubble.textContent = m.content;
+            } else {
+                const b = document.createElement("b");
+                b.textContent = nm;
+                bubble.appendChild(b);
+                bubble.appendChild(document.createElement("br"));
+                bubble.appendChild(document.createTextNode(m.content));
+            }
+            div.querySelector(".msg-time").textContent = t;
+            ml.appendChild(div);
+            ml.scrollTop = ml.scrollHeight;
+        }
+        function sendGroupMessage() {
+            if (!ws || ws.readyState !== 1 || !activeGroup) return;
+            const c = $("gmsgInput").value.trim();
+            if (!c) return;
+            const cid = uuid();
+            ws.send(
+                JSON.stringify({
+                    cmd: "group_chat",
+                    seq: Date.now(),
+                    data: {
+                        group_id: activeGroup,
+                        content: c,
+                        msg_type: 1,
+                        client_msg_id: cid,
+                    },
+                }),
+            );
+            appendGroupMsg(
+                {
+                    msg_id: Date.now(),
+                    group_id: activeGroup,
+                    from_uid: me.uid,
+                    from_name: me.username,
+                    content: c,
+                    msg_type: 1,
+                    send_time: Date.now(),
+                },
+                $("gmsgList"),
+            );
+            $("gmsgInput").value = "";
+            $("gmsgInput").style.height = "auto";
+            $("gmsgInput").focus();
+        }
+        function onGroupMsgKey(e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendGroupMessage();
+                return;
+            }
+            setTimeout(() => {
+                const ta = $("gmsgInput");
+                ta.style.height = "auto";
+                ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+            }, 0);
+        }
+
+        async function loadGroupList() {
+            if (!me) return;
+            const d = await api("/api/group/list?token=" + encodeURIComponent(me.token));
+            if (d.code !== 200) return;
+            groupCache = d.data || [];
+            renderGroupList();
+        }
+        function renderGroupList() {
+            const el = $("groupList");
+            el.replaceChildren();
+            if (groupCache.length === 0) {
+                const d = tpl("EmptyState");
+                d.innerHTML = "No groups yet.<br>Create or join a group to start.";
+                el.appendChild(d);
+                return;
+            }
+            for (const g of groupCache) {
+                const item = tpl("GroupItem");
+                item.querySelector(".li-name").textContent = g.name;
+                item.querySelector(".li-last").textContent = g.member_count + " members";
+                item.onclick = () => openGroupChat(g.group_id, g.name);
+                el.appendChild(item);
+            }
+        }
+
+        function openModal(t) {
+            $("modalOverlay").classList.add("show");
+            $("groupErr").textContent = "";
+            $("joinGroupErr").textContent = "";
+            if (t === "create") {
+                $("modalCreateGroup").style.display = "block";
+                $("modalJoinGroup").style.display = "none";
+                $("groupName").focus();
+            } else {
+                $("modalCreateGroup").style.display = "none";
+                $("modalJoinGroup").style.display = "block";
+                $("joinGroupId").focus();
+            }
+        }
+        function closeModal() {
+            $("modalOverlay").classList.remove("show");
+        }
+        async function doCreateGroup() {
+            const n = $("groupName").value.trim();
+            if (!n) {
+                $("groupErr").textContent = "Enter a group name";
+                return;
+            }
+            const d = await api("/api/group/create", {
+                method: "POST",
+                body: JSON.stringify({ token: me.token, name: n }),
+            });
+            if (d.code !== 200) {
+                $("groupErr").textContent = d.msg;
+                return;
+            }
+            closeModal();
+            $("groupName").value = "";
+            loadGroupList();
+        }
+        async function doJoinGroup() {
+            const g = $("joinGroupId").value.trim();
+            if (!g) {
+                $("joinGroupErr").textContent = "Enter a group ID";
+                return;
+            }
+            const d = await api("/api/group/join", {
+                method: "POST",
+                body: JSON.stringify({ token: me.token, group_id: g }),
+            });
+            if (d.code !== 200) {
+                $("joinGroupErr").textContent = d.msg;
+                return;
+            }
+            closeModal();
+            $("joinGroupId").value = "";
+            loadGroupList();
+        }
+
+        let searchTimer;
+        async function onSearchInput() {
+            clearTimeout(searchTimer);
+            const q = $("searchInput").value.trim();
+            if (!q) {
+                $("searchResults").classList.remove("show");
+                return;
+            }
+            searchTimer = setTimeout(async () => {
+                const d = await api(
+                    "/api/user/search?token=" +
+                    encodeURIComponent(me.token) +
+                    "&q=" +
+                    encodeURIComponent(q) +
+                    "&limit=8",
+                );
+                if (d.code !== 200 || !d.data) return;
+                const el = $("searchResults");
+                el.replaceChildren();
+                for (const u of d.data) {
+                    const item = tpl("SearchItem");
+                    item.querySelector(".sr-avatar").textContent = u.username[0].toUpperCase();
+                    item.lastElementChild.textContent = u.username;
+                    item.onclick = () => startChat(u.id, u.username);
                     el.appendChild(item);
                 }
-            }
-
-            function openModal(t) {
-                $("modalOverlay").classList.add("show");
-                $("groupErr").textContent = "";
-                $("joinGroupErr").textContent = "";
-                if (t === "create") {
-                    $("modalCreateGroup").style.display = "block";
-                    $("modalJoinGroup").style.display = "none";
-                    $("groupName").focus();
-                } else {
-                    $("modalCreateGroup").style.display = "none";
-                    $("modalJoinGroup").style.display = "block";
-                    $("joinGroupId").focus();
-                }
-            }
-            function closeModal() {
-                $("modalOverlay").classList.remove("show");
-            }
-            async function doCreateGroup() {
-                const n = $("groupName").value.trim();
-                if (!n) {
-                    $("groupErr").textContent = "Enter a group name";
-                    return;
-                }
-                const d = await api("/api/group/create", {
-                    method: "POST",
-                    body: JSON.stringify({ token: me.token, name: n }),
+                el.classList.add("show");
+            }, 300);
+        }
+        function startChat(uid, name) {
+            $("searchInput").value = "";
+            $("searchResults").classList.remove("show");
+            peers[uid] = { username: name };
+            const ex = convCache.find((c) => c.peer_uid === uid);
+            if (!ex)
+                convCache.unshift({
+                    peer_uid: uid,
+                    peer_name: name,
+                    last_msg: "",
+                    last_time: Date.now(),
+                    last_msg_type: 1,
+                    last_msg_id: 0,
                 });
-                if (d.code !== 200) {
-                    $("groupErr").textContent = d.msg;
-                    return;
+            renderConvList();
+            openChat(uid, name);
+            setTimeout(loadConversations, 500);
+        }
+        document.addEventListener("click", (e) => {
+            if (!e.target.closest(".search-wrap")) $("searchResults").classList.remove("show");
+        });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", () => {
+                if (window.innerHeight - window.visualViewport.height > 100) {
+                    const ml = currentPage === "groupChat" ? $("gmsgList") : $("msgList");
+                    if (ml) ml.scrollTop = ml.scrollHeight;
                 }
-                closeModal();
-                $("groupName").value = "";
-                loadGroupList();
-            }
-            async function doJoinGroup() {
-                const g = $("joinGroupId").value.trim();
-                if (!g) {
-                    $("joinGroupErr").textContent = "Enter a group ID";
-                    return;
-                }
-                const d = await api("/api/group/join", {
-                    method: "POST",
-                    body: JSON.stringify({ token: me.token, group_id: g }),
-                });
-                if (d.code !== 200) {
-                    $("joinGroupErr").textContent = d.msg;
-                    return;
-                }
-                closeModal();
-                $("joinGroupId").value = "";
-                loadGroupList();
-            }
-
-            let searchTimer;
-            async function onSearchInput() {
-                clearTimeout(searchTimer);
-                const q = $("searchInput").value.trim();
-                if (!q) {
-                    $("searchResults").classList.remove("show");
-                    return;
-                }
-                searchTimer = setTimeout(async () => {
-                    const d = await api(
-                        "/api/user/search?token=" +
-                            encodeURIComponent(me.token) +
-                            "&q=" +
-                            encodeURIComponent(q) +
-                            "&limit=8",
-                    );
-                    if (d.code !== 200 || !d.data) return;
-                    const el = $("searchResults");
-                    el.replaceChildren();
-                    for (const u of d.data) {
-                        const item = tpl("SearchItem");
-                        item.querySelector(".sr-avatar").textContent = u.username[0].toUpperCase();
-                        item.lastElementChild.textContent = u.username;
-                        item.onclick = () => startChat(u.id, u.username);
-                        el.appendChild(item);
-                    }
-                    el.classList.add("show");
-                }, 300);
-            }
-            function startChat(uid, name) {
-                $("searchInput").value = "";
-                $("searchResults").classList.remove("show");
-                peers[uid] = { username: name };
-                const ex = convCache.find((c) => c.peer_uid === uid);
-                if (!ex)
-                    convCache.unshift({
-                        peer_uid: uid,
-                        peer_name: name,
-                        last_msg: "",
-                        last_time: Date.now(),
-                        last_msg_type: 1,
-                        last_msg_id: 0,
-                    });
-                renderConvList();
-                openChat(uid, name);
-                setTimeout(loadConversations, 500);
-            }
-            document.addEventListener("click", (e) => {
-                if (!e.target.closest(".search-wrap")) $("searchResults").classList.remove("show");
             });
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener("resize", () => {
-                    if (window.innerHeight - window.visualViewport.height > 100) {
-                        const ml = currentPage === "groupChat" ? $("gmsgList") : $("msgList");
-                        if (ml) ml.scrollTop = ml.scrollHeight;
-                    }
-                });
-            }
-        </script>
-    </body>
+        }
+    </script>
+</body>
+
 </html>

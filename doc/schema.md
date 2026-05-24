@@ -137,7 +137,7 @@ sequenceDiagram
 > 1. Open chat → `GET /api/message/history` marks unseen and pushes `delivery_update`.
 > 2. Receive push while viewing chat → frontend sends `mark_seen` WS command.
 > Column renamed `delivered` → `seen`. Frontend states:
-> ◷ Sending → ◷ Sent (offline) / ✓ Read (online) → ✓ Read (delivery_update).
+> ◷ Sending → ◷ Sent (online/offline both) → ✓ Read (delivery_update only).
 
 ```mermaid
 sequenceDiagram
@@ -171,7 +171,7 @@ sequenceDiagram
     DB-->>Server: msg_id=42
     Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello"}
     Server-->>Alice: ACK {msg_id:42, delivered:true}
-    Alice->>Alice: ✓ Read
+    Alice->>Alice: ◷ Sent
     Bob->>Bob: Show "hello"
     Bob->>Server: WS {cmd:"mark_seen", data:{to_uid:Alice}}
     Server->>DB: UPDATE seen=TRUE RETURNING id<br/>(mark_seen_from_peer)
@@ -429,7 +429,7 @@ message bubble and persisted to `localStorage` for survival across reloads.
 ```mermaid
 stateDiagram-v2
     [*] --> Sending: sendMessage()
-    Sending --> Read: handleAck<br/>delivered=true (peer online)
+    Sending --> Sent: handleAck<br/>delivered=true (peer online)
     Sending --> Sent: handleAck<br/>delivered=false (peer offline)
     Sent --> Read: delivery_update<br/>(peer opened chat or mark_seen)
     Read --> Read: delivery_update (idempotent)
@@ -444,7 +444,7 @@ stateDiagram-v2
 |-------|-------|-----------|---------|
 | Sending | `◷ Sending...` | `.pending` | Message sent, waiting for ACK |
 | Sent | `◷ Sent` | `.undelivered` | Peer offline, or history seen=false |
-| Read | `✓ Read` | `.delivered` | Peer online (ACK), or delivery_update |
+| Read | `✓ Read` | `.delivered` | delivery_update only (peer viewed chat) |
 
 **Persistence**: `handleAck` and `handleDeliveryUpdate` call `saveMsgStatus(id, 'read')`.
 On history load, `appendMsg` checks `localStorage` first, then falls back to `m.seen`.
