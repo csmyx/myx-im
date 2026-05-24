@@ -132,9 +132,11 @@ sequenceDiagram
 
 ## Private Chat — Full Flow (v2 — seen-marking in history endpoint)
 
-> **Change from v1:** The `mark_delivered` WS command is removed. Instead, when the
-> receiver fetches chat history via `GET /api/message/history`, the backend
-> automatically marks unseen messages from the peer as `seen=TRUE` and pushes a
+> **Change from v1:** The `mark_delivered` WS command is removed. Instead, seen-marking
+> happens in two places:
+> 1. When the receiver fetches chat history via `GET /api/message/history` (open chat).
+> 2. When the receiver sends a reply via `private_chat` (replying implies reading).
+> In both cases, the backend marks unseen messages `seen=TRUE` and pushes a
 > `delivery_update` to the sender. Column renamed `delivered` → `seen`.
 
 ```mermaid
@@ -169,7 +171,8 @@ sequenceDiagram
     DB-->>Server: msg_id=42
     Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello", send_time}
     Server-->>Alice: ACK {cmd:"private_chat_ack", data:{msg_id:42, delivered:true}}
-    Bob->>Bob: Show "hello" + unread badge if not in chat
+    Alice->>Alice: ✓ Delivered
+    Bob->>Bob: Show "hello"
 
     Note over Alice, Bob: === Bob opens Alice's chat (loads history) ===
     Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
@@ -177,26 +180,37 @@ sequenceDiagram
     Server->>DB: SELECT chat history (ORDER BY id DESC LIMIT 50)
     Server-->>Bob: 200 {history items}
     Server->>Alice: Push delivery_update {msg_ids:[42], to_uid:Bob}
+    Alice->>Alice: ✓ Delivered → ✓ Read
+
+    Note over Alice, Bob: === Bob replies (marks Alice's messages as seen) ===
+    Bob->>Server: WS {cmd:"private_chat", data:{to_uid:Alice, content:"hi back"}}
+    Server->>DB: INSERT im_chat_messages (seen=FALSE)
+    DB-->>Server: msg_id=43
+    Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
+    Server->>Bob: ACK {msg_id:43, delivered:true}
+    Server->>Alice: Push PrivatePushMsg {from_uid:Bob, content:"hi back"}
+    Server->>Alice: Push delivery_update {msg_ids:[...], to_uid:Bob}
     Alice->>Alice: ✓ Read
+    Bob->>Bob: ✓ Delivered
 
     Note over Alice, Bob: === Alice sends to offline Bob ===
-    Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"hi"}}
+    Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"you there?"}}
     Server->>DB: INSERT (seen=FALSE)
-    DB-->>Server: msg_id=43
-    Server-->>Alice: ACK {msg_id:43, delivered:false}
+    DB-->>Server: msg_id=44
+    Server-->>Alice: ACK {msg_id:44, delivered:false}
     Alice->>Alice: ◷ Sent (offline)
 
     Note over Bob: Bob reconnects later
     Bob->>Server: GET /im/ws?token=<jwt>
     Server->>DB: SELECT unseen WHERE to_uid=Bob (seen=FALSE)
-    Server-->>Bob: Push [msg_id=43, from_uid=Alice, content:"hi"]
-    Bob->>Bob: Show "hi" + unread badge 🔴1
+    Server-->>Bob: Push [msg_id=44, from_uid=Alice, content:"you there?"]
+    Bob->>Bob: Show "you there?" + unread badge 🔴1
 
     Note over Bob: Bob opens Alice's chat
     Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
     Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
     Server-->>Bob: 200 {history items}
-    Server->>Alice: Push delivery_update {msg_ids:[43], to_uid:Bob}
+    Server->>Alice: Push delivery_update {msg_ids:[44], to_uid:Bob}
     Alice->>Alice: ◷ Sent → ✓ Read
 ```
 
