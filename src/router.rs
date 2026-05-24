@@ -373,6 +373,10 @@ async fn handle_biz_msg(
             {
                 Ok(msg_id) => {
                     // ACK to sender
+                    tracing::debug!(
+                        "group_chat persisted msg_id={msg_id} group={group_id} user={uid}",
+                        group_id = req.group_id
+                    );
                     let ack = GroupChatAck {
                         msg_id,
                         send_time,
@@ -934,52 +938,68 @@ async fn group_history_handler(
                     .filter(|m| m.from_uid != claims.user_id)
                     .map(|m| m.msg_id)
                     .collect();
-                if !other_msgs.is_empty() {
-                    if let Ok(counts) =
+                tracing::debug!(
+                    "group_history: viewer={}, group={}, total_items={}, other_msgs={:?}",
+                    claims.user_id,
+                    query.group_id,
+                    items.len(),
+                    other_msgs
+                );
+                if !other_msgs.is_empty()
+                    && let Ok(counts) =
                         dao::get_group_read_counts(&state.pg_pool, query.group_id, &other_msgs)
                             .await
-                    {
-                        // Group by sender UID
-                        let mut sender_msgs: std::collections::HashMap<Uuid, Vec<i64>> =
-                            std::collections::HashMap::new();
-                        for item in &items {
-                            if item.from_uid != claims.user_id {
-                                sender_msgs
-                                    .entry(item.from_uid)
-                                    .or_default()
-                                    .push(item.msg_id);
+                {
+                    tracing::debug!(
+                        "group_history read_counts: {:?}",
+                        counts
+                            .iter()
+                            .map(|(mid, r, t)| format!("{mid}:{r}/{t}"))
+                            .collect::<Vec<_>>()
+                    );
+                    // Group by sender UID
+                    let mut sender_msgs: std::collections::HashMap<Uuid, Vec<i64>> =
+                        std::collections::HashMap::new();
+                    for item in &items {
+                        if item.from_uid != claims.user_id {
+                            sender_msgs
+                                .entry(item.from_uid)
+                                .or_default()
+                                .push(item.msg_id);
+                        }
+                    }
+                    // Build read count lookup
+                    let count_map: std::collections::HashMap<i64, (i64, i64)> = counts
+                        .into_iter()
+                        .map(|(mid, r, t)| (mid, (r, t)))
+                        .collect();
+
+                    for (sender_uid, mids) in &sender_msgs {
+                        let mut statuses = vec![];
+                        for mid in mids {
+                            if let Some((read, total)) = count_map.get(mid) {
+                                statuses.push(crate::model::GroupMsgReadStatus {
+                                    msg_id: *mid,
+                                    read: *read,
+                                    total: *total,
+                                });
                             }
                         }
-                        // Build read count lookup
-                        let count_map: std::collections::HashMap<i64, (i64, i64)> =
-                            counts.into_iter().map(|(mid, r, t)| (mid, (r, t))).collect();
-
-                        for (sender_uid, mids) in &sender_msgs {
-                            let mut statuses = vec![];
-                            for mid in mids {
-                                if let Some((read, total)) = count_map.get(mid) {
-                                    statuses.push(crate::model::GroupMsgReadStatus {
-                                        msg_id: *mid,
-                                        read: *read,
-                                        total: *total,
-                                    });
-                                }
-                            }
-                            if !statuses.is_empty() {
-                                let update = crate::model::GroupDeliveryUpdate {
-                                    group_id: query.group_id,
-                                    msg_statuses: statuses,
-                                    reader_uid: claims.user_id,
-                                };
-                                if let Ok(json) = serde_json::to_string(&update) {
-                                    state.send_to_user(
-                                        *sender_uid,
-                                        Utf8Bytes::from(format!(
-                                            r#"{{"cmd":"group_delivery_update","seq":0,"data":{}}}"#,
-                                            json
-                                        )),
-                                    );
-                                }
+                        if !statuses.is_empty() {
+                            let update = crate::model::GroupDeliveryUpdate {
+                                group_id: query.group_id,
+                                msg_statuses: statuses,
+                                reader_uid: claims.user_id,
+                            };
+                            if let Ok(json) = serde_json::to_string(&update) {
+                                let payload = Utf8Bytes::from(format!(
+                                    r#"{{"cmd":"group_delivery_update","seq":0,"data":{}}}"#,
+                                    json
+                                ));
+                                tracing::debug!(
+                                    "push group_delivery_update to sender={sender_uid}: {json}"
+                                );
+                                state.send_to_user(*sender_uid, payload);
                             }
                         }
                     }

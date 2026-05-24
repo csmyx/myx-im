@@ -133,3 +133,54 @@ messages as seen even when Bob wasn't viewing Alice's chat.
 - `openChat` overwrites `peers` entry if username is still `'?'`
 
 **Files changed**: `src/model.rs`, `src/router.rs`, `chat.html`
+
+### 9. Group read status (✓ Read N/M) never updating (2026-05-25)
+
+**Symptom**: After sending a group message, the status permanently showed "◷ Sent".
+The `group_delivery_update` WS message arrived from the server but the frontend
+silently ignored it — the read count never appeared.
+
+**Root cause — multiple cascading issues**:
+
+1. **`appendGroupMsg()` had no `return` statement.** `sendGroupMessage()` did
+   `el = appendGroupMsg(...)` and stored `{el, msg}` in `pendingMsgs[seq]`, but
+   `el` was always `undefined`. So `handleGroupAck()` couldn't map the real DB
+   `msg_id` to a DOM element, and `handleGroupDeliveryUpdate()` couldn't find
+   the element to update.
+
+2. **`get_group_read_counts` SQL counted the message sender as a reader.**
+   When the sender's own read cursor covered their own message, they were
+   counted as a reader. With 3 members, a freshly-sent message showed
+   "Read 1/2" (the sender themself counted as 1 reader of their own message)
+   or jumped straight to "Read 3/3".
+
+3. **No integration test for `group_delivery_update` flow.** The existing
+   group test only verified `group_chat_ack` and `group_push`, not the
+   delivery update push that happens when someone views history.
+
+**Fix**:
+
+- `appendGroupMsg()` now `return div` so `pendingMsgs[seq].el` is the real DOM element
+- `handleGroupAck()` maps `msgById[real_msg_id] = e.el` correctly
+- Frontend logs via `console.debug` added to `handleGroupAck`, `handleGroupDeliveryUpdate`, and `sendGroupMessage` for debugging
+- `get_group_read_counts` SQL JOINs `im_group_messages` and filters with
+  `cr.user_id != gm.from_uid` to exclude each message's own sender from its
+  read count
+- Removed `sender_uid` parameter from `get_group_read_counts` (was wrong for
+  multi-sender batches)
+- Added `test_group_read_status_delivery_update`: Alice sends 2 messages,
+  Bob views history → Alice gets `group_delivery_update` with `read=1,total=2`,
+  Carol views history → Alice gets `read=2,total=2`
+- Backend `tracing::debug` logs added to `group_history_handler`,
+  `group_chat` WS handler, and `get_group_read_counts`
+
+**Tracing tips for debugging**:
+
+```bash
+# See all group read status related logs:
+RUST_LOG=myx_im=debug cargo run 2>&1 | grep -E 'grpAck|grpDelUp|sendGrp|group_chat|group_history|group_delivery|get_group_read'
+```
+
+Frontend logs appear in browser console with `[grpAck]`, `[grpDelUp]`, `[sendGrp]` prefixes.
+
+**Files changed**: `chat.html`, `src/dao.rs`, `src/router.rs`, `tests/integration_test.rs`

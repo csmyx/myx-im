@@ -522,8 +522,9 @@ pub async fn get_unseen_group_counts(
     Ok(rows.into_iter().map(|r| (r.group_id, r.count)).collect())
 }
 
-/// For a batch of message IDs in a group, count how many members have read each.
-/// Returns Vec<(msg_id, read_count, total_members)>.
+/// For a batch of message IDs in a group, count how many OTHER members have read each.
+/// Excludes each message's own sender from the read count.
+/// Returns Vec<(msg_id, read_count, total_other_members)>.
 pub async fn get_group_read_counts(
     pool: &PgPool,
     group_id: Uuid,
@@ -532,13 +533,16 @@ pub async fn get_group_read_counts(
     if msg_ids.is_empty() {
         return Ok(vec![]);
     }
-    // purpose: count how many members have read up to each message
+    // purpose: for each message, count how many OTHER members have read it
+    // (excludes the message sender from the reader count)
     let rows = sqlx::query!(
         r#"SELECT m.msg_id as "msg_id!", COUNT(cr.user_id) as "read!: i64",
-                  (SELECT COUNT(*) FROM im_group_members WHERE group_id = $1) as "total!: i64"
+                  ((SELECT COUNT(*) FROM im_group_members WHERE group_id = $1) - 1) as "total!: i64"
            FROM unnest($2::bigint[]) AS m(msg_id)
+           JOIN im_group_messages gm ON gm.id = m.msg_id
            LEFT JOIN im_group_read_cursors cr ON cr.group_id = $1
                   AND cr.last_read_msg_id >= m.msg_id
+                  AND cr.user_id != gm.from_uid
            GROUP BY m.msg_id"#,
         group_id,
         msg_ids,
@@ -550,7 +554,17 @@ pub async fn get_group_read_counts(
         e
     })?;
 
-    Ok(rows.into_iter().map(|r| (r.msg_id, r.read, r.total)).collect())
+    tracing::debug!(
+        "get_group_read_counts group={group_id} msg_ids={msg_ids:?} results={:?}",
+        rows.iter()
+            .map(|r| (r.msg_id, r.read, r.total))
+            .collect::<Vec<_>>()
+    );
+
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.msg_id, r.read, r.total))
+        .collect())
 }
 
 pub async fn persist_group_message(

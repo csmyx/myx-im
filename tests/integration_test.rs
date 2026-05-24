@@ -64,8 +64,7 @@ async fn ws_connect(
         loop {
             match ws.next().await {
                 Some(Ok(Message::Text(t))) => {
-                    let v: serde_json::Value =
-                        serde_json::from_str(&t).unwrap_or_default();
+                    let v: serde_json::Value = serde_json::from_str(&t).unwrap_or_default();
                     let cmd = v["cmd"].as_str().unwrap_or("");
                     if cmd != "private_push" && cmd != "group_push" {
                         break;
@@ -862,5 +861,177 @@ async fn test_group_create_search_join_chat() {
     alice_ws.close(None).await.unwrap();
     bob_ws.close(None).await.unwrap();
     carol_ws.close(None).await.unwrap();
+    server_handle.abort();
+}
+
+/// Group read status: when a member views group history, the sender receives
+/// a group_delivery_update with the read count (excluding themselves).
+///
+/// Steps:
+///   1. Register 3 users (Alice, Bob, Carol), Alice creates group, all join
+///   2. Alice sends 2 group messages via WS → gets ACKs
+///   3. Bob queries group history → marks Bob as having read
+///   4. Alice receives group_delivery_update with read=1, total=2
+///   5. Carol queries group history → marks Carol as having read
+///   6. Alice receives group_delivery_update with read=2, total=2
+#[tokio::test]
+async fn test_group_read_status_delivery_update() {
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::Message;
+
+    dotenv::dotenv().ok();
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // ---- Register + login 3 users ----
+    let mut tokens = vec![];
+    for (name, pass) in &[
+        ("test_gr_alice", "alice123"),
+        ("test_gr_bob", "bob123"),
+        ("test_gr_carol", "carol123"),
+    ] {
+        let r = post_json(
+            &client,
+            &format!("{}/api/user/register", addr),
+            &serde_json::json!({"username": name, "password": pass}),
+        )
+        .await;
+        assert!(r["code"] == 200 || r["code"] == 409, "register {name}: {r}");
+        let r = post_json(
+            &client,
+            &format!("{}/api/user/login", addr),
+            &serde_json::json!({"username": name, "password": pass}),
+        )
+        .await;
+        assert_eq!(r["code"], 200, "login {name}: {r}");
+        tokens.push(r["data"].as_str().unwrap().to_string());
+    }
+
+    let alice_token = &tokens[0];
+    let bob_token = &tokens[1];
+    let carol_token = &tokens[2];
+    let group_name = format!("Read Status {}", Uuid::new_v4());
+
+    // ---- Alice creates group, Bob and Carol join ----
+    let r = post_json(
+        &client,
+        &format!("{}/api/group/create", addr),
+        &serde_json::json!({"token": alice_token, "name": &group_name}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "create group: {r}");
+    let group_id: Uuid = r["data"]["group_id"].as_str().unwrap().parse().unwrap();
+
+    for token in &[bob_token, carol_token] {
+        let r = post_json(
+            &client,
+            &format!("{}/api/group/join", addr),
+            &serde_json::json!({"token": token, "group_id": group_id}),
+        )
+        .await;
+        assert_eq!(r["code"], 200, "join group: {r}");
+    }
+
+    // ---- Connect all via WS ----
+    let mut alice_ws = ws_connect(&addr, alice_token).await;
+    let _bob_ws = ws_connect(&addr, bob_token).await;
+    let _carol_ws = ws_connect(&addr, carol_token).await;
+
+    // ---- Alice sends 2 group messages ----
+    for i in 1..=2 {
+        let gmsg = serde_json::json!({
+            "cmd": "group_chat",
+            "seq": i,
+            "data": {
+                "group_id": group_id,
+                "content": format!("msg {}", i),
+                "msg_type": 1,
+                "from_name": "test_gr_alice"
+            }
+        });
+        let ack = ws_send_recv(&mut alice_ws, &gmsg.to_string()).await;
+        let ack_val: serde_json::Value = serde_json::from_str(&ack).unwrap();
+        assert_eq!(ack_val["cmd"], "group_chat_ack", "group ACK {i}: {ack}");
+        assert!(ack_val["data"]["msg_id"].is_number(), "should have msg_id");
+    }
+
+    // Helper: drain WS until we get group_delivery_update, or timeout
+    async fn drain_until_delivery_update(
+        ws: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    ) -> Option<serde_json::Value> {
+        for _ in 0..10 {
+            match ws.next().await {
+                Some(Ok(Message::Text(t))) => {
+                    let v: serde_json::Value = serde_json::from_str(&t).unwrap_or_default();
+                    if v["cmd"] == "group_delivery_update" {
+                        return Some(v);
+                    }
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    // ---- Bob queries group history, triggers delivery update to Alice ----
+    let _r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/history?token={}&group_id={}&limit=10",
+            addr, bob_token, group_id
+        ),
+    )
+    .await;
+
+    let du = drain_until_delivery_update(&mut alice_ws).await;
+    assert!(
+        du.is_some(),
+        "alice should receive group_delivery_update after bob views history"
+    );
+    let du = du.unwrap();
+    let statuses = du["data"]["msg_statuses"].as_array().unwrap();
+    assert!(!statuses.is_empty(), "should have msg_statuses");
+    // Bob read Alice's messages, Carol hasn't yet → read=1, total=2
+    let s0 = &statuses[0];
+    assert_eq!(s0["read"], 1, "bob read, read should be 1: {s0}");
+    assert_eq!(s0["total"], 2, "2 other members, total should be 2: {s0}");
+
+    // ---- Carol queries group history, triggers another delivery update ----
+    let _r = get_json(
+        &client,
+        &format!(
+            "{}/api/group/history?token={}&group_id={}&limit=10",
+            addr, carol_token, group_id
+        ),
+    )
+    .await;
+
+    let du2 = drain_until_delivery_update(&mut alice_ws).await;
+    assert!(
+        du2.is_some(),
+        "alice should receive group_delivery_update after carol views history"
+    );
+    let du2 = du2.unwrap();
+    let statuses2 = du2["data"]["msg_statuses"].as_array().unwrap();
+    let s0_2 = &statuses2[0];
+    assert_eq!(
+        s0_2["read"], 2,
+        "both bob and carol read, read should be 2: {s0_2}"
+    );
+    assert_eq!(s0_2["total"], 2, "total should be 2: {s0_2}");
+
+    // ---- Cleanup ----
+    alice_ws.close(None).await.unwrap();
     server_handle.abort();
 }

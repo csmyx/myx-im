@@ -1263,6 +1263,7 @@
                     if (m.cmd === "private_push") handlePush(m.data);
                     else if (m.cmd === "group_push") handleGroupPush(m.data);
                     else if (m.cmd === "private_chat_ack") handleAck(m);
+                    else if (m.cmd === "group_chat_ack") handleGroupAck(m);
                     else if (m.cmd === "delivery_update") handleDeliveryUpdate(m);
                     else if (m.cmd === "group_delivery_update") handleGroupDeliveryUpdate(m);
                     else if (m.cmd === "typing") handleTyping(m);
@@ -1366,15 +1367,34 @@
                 }
             }
         }
+        function handleGroupAck(m) {
+            console.debug('[grpAck] seq=', m.seq, 'msg_id=', m.data && m.data.msg_id);
+            // Map real DB msg_id to DOM for group messages
+            let e = pendingMsgs[m.seq];
+            if (!e) {
+                for (const k of Object.keys(pendingMsgs)) {
+                    if (Number(k) === Number(m.seq)) { e = pendingMsgs[k]; break }
+                }
+            }
+            if (!e) { console.debug('[grpAck] no pending msg for seq=', m.seq); return; }
+            if (m.data && m.data.msg_id) {
+                e.msg.msg_id = m.data.msg_id;
+                msgById[m.data.msg_id] = e.el;
+                console.debug('[grpAck] mapped msg_id=', m.data.msg_id, '->', !!e.el);
+            }
+            delete pendingMsgs[m.seq];
+        }
         function handleGroupDeliveryUpdate(m) {
+            console.debug('[grpDelUp]', JSON.stringify(m.data));
             const statuses = m.data && m.data.msg_statuses;
             if (!statuses) return;
             for (const s of statuses) {
                 const el = msgById[s.msg_id];
-                if (!el) continue;
+                if (!el) { console.debug('[grpDelUp] no DOM for msg_id=', s.msg_id); continue; }
                 const st = el.querySelector(".msg-status");
                 if (st) {
                     st.innerHTML = '<span class="delivered">\u2713 Read ' + s.read + '/' + s.total + '</span>';
+                    console.debug('[grpDelUp] updated msg_id=', s.msg_id, '->', s.read, '/', s.total);
                 }
             }
         }
@@ -1707,16 +1727,18 @@
             }
             ml.appendChild(div);
             ml.scrollTop = ml.scrollHeight;
+            return div;
         }
         function sendGroupMessage() {
             if (!ws || ws.readyState !== 1 || !activeGroup) return;
             const c = $("gmsgInput").value.trim();
             if (!c) return;
-            const cid = uuid();
+            const seq = Date.now(),
+                cid = uuid();
             ws.send(
                 JSON.stringify({
                     cmd: "group_chat",
-                    seq: Date.now(),
+                    seq,
                     data: {
                         group_id: activeGroup,
                         content: c,
@@ -1726,18 +1748,18 @@
                     },
                 }),
             );
-            appendGroupMsg(
-                {
-                    msg_id: Date.now(),
-                    group_id: activeGroup,
-                    from_uid: me.uid,
-                    from_name: me.username,
-                    content: c,
-                    msg_type: 1,
-                    send_time: Date.now(),
-                },
-                $("gmsgList"),
-            );
+            const msg = {
+                msg_id: seq,
+                group_id: activeGroup,
+                from_uid: me.uid,
+                from_name: me.username,
+                content: c,
+                msg_type: 1,
+                send_time: Date.now(),
+            },
+                el = appendGroupMsg(msg, $("gmsgList"));
+            pendingMsgs[seq] = { el, msg };
+            console.debug('[sendGrp] seq=', seq, 'el=', !!el);
             $("gmsgInput").value = "";
             $("gmsgInput").style.height = "auto";
             $("gmsgInput").focus();
