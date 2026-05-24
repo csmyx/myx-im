@@ -1362,7 +1362,7 @@
                     msgById[m.data.msg_id] = e.el;
                 }
                 if (m.data && m.data.delivered) {
-                    if (s) s.innerHTML = "";
+                    if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
                     $("chStatus").textContent = "online";
                     $("chStatus").style.color = "var(--accent)";
                 } else {
