@@ -122,22 +122,6 @@ pub struct DeliveryUpdate {
     pub to_uid: Uuid,
 }
 
-/// Client requests marking all undelivered messages from a peer as delivered
-/// (sent when user opens a chat conversation)
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MarkDeliveredReq {
-    pub peer_uid: Uuid,
-}
-
-/// Notify sender that recipient has read up to a specific message
-/// (tied to im_read_cursors table, sent after mark_delivered updates the cursor)
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ReadReceipt {
-    pub peer_uid: Uuid,
-    /// The highest message ID the recipient has seen in this conversation
-    pub last_read_msg_id: i64,
-}
-
 /// Group chat upstream (client → server via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupChatReq {

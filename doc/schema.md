@@ -403,7 +403,6 @@ graph TB
         GroupPush["GroupPushMsg<br/>→ handleGroupPush()"]
         Ack["private_chat_ack<br/>→ handleAck()"]
         Delivery["delivery_update<br/>→ handleDeliveryUpdate()"]
-        ReadRec["read_receipt<br/>→ handleReadReceipt()"]
         Typing["typing<br/>→ handleTyping()"]
     end
 
@@ -411,7 +410,6 @@ graph TB
     onmessage --> GroupPush
     onmessage --> Ack
     onmessage --> Delivery
-    onmessage --> ReadRec
     onmessage --> Typing
 ```
 

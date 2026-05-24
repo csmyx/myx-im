@@ -1056,7 +1056,6 @@
                     else if (m.cmd === 'private_chat_ack') handleAck(m);
                     else if (m.cmd === 'delivery_update') handleDeliveryUpdate(m);
                     else if (m.cmd === 'typing') handleTyping(m);
-                    else if (m.cmd === 'read_receipt') handleReadReceipt(m);
                     else if (m.cmd === 'kicked') { $('authErr').textContent = 'Logged in from another device'; doLogout() }
                 } catch (_) { }
             }
@@ -1098,7 +1097,6 @@
             const h = $('typingHint'); h.textContent = ((peers[f] && peers[f].username) || '?') + ' is typing...'; h.style.display = 'block'; clearTimeout(typingTimeout); typingTimeout = setTimeout(() => { h.style.display = 'none' }, 3000)
         }
         function sendTyping() { if (!activePeer || !ws || ws.readyState !== 1) return; ws.send(JSON.stringify({ cmd: 'typing', seq: 0, data: { to_uid: activePeer } })) }
-        function handleReadReceipt(m) { }
 
         async function loadConversations() {
             if (!me) return;
