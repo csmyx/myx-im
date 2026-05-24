@@ -10,6 +10,7 @@ use myx_im::router::app_router;
 use myx_im::state::init_app_state;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
+use uuid::Uuid;
 
 /// Spawn the server on an ephemeral port, return the bound address.
 async fn spawn_server(pool: sqlx::PgPool) -> (tokio::task::JoinHandle<()>, String) {
@@ -289,7 +290,10 @@ async fn test_message_undelivered_when_peer_disconnects() {
     });
     let ack = ws_send_recv(&mut alice_ws, &chat_msg.to_string()).await;
     let ack_val: serde_json::Value = serde_json::from_str(&ack).unwrap();
-    assert_eq!(ack_val["cmd"], "private_chat_ack", "expected ACK, got: {ack}");
+    assert_eq!(
+        ack_val["cmd"], "private_chat_ack",
+        "expected ACK, got: {ack}"
+    );
     assert!(
         ack_val["data"]["delivered"] == false,
         "first message to disconnected peer should NOT be delivered, got: {ack}"
@@ -308,7 +312,10 @@ async fn test_message_undelivered_when_peer_disconnects() {
     });
     let ack2 = ws_send_recv(&mut alice_ws, &chat_msg2.to_string()).await;
     let ack_val2: serde_json::Value = serde_json::from_str(&ack2).unwrap();
-    assert_eq!(ack_val2["cmd"], "private_chat_ack", "expected ACK, got: {ack2}");
+    assert_eq!(
+        ack_val2["cmd"], "private_chat_ack",
+        "expected ACK, got: {ack2}"
+    );
     assert!(
         ack_val2["data"]["delivered"] == false,
         "second message to disconnected peer should NOT be delivered, got: {ack2}"
@@ -361,7 +368,10 @@ async fn test_delete_account_removes_user_and_data() {
 
     // ---- Verify cannot login again (user record deleted) ----
     let r = post_json(&client, &format!("{}/api/user/login", addr), &user).await;
-    assert_ne!(r["code"], 200, "should not be able to login after deletion: {r}");
+    assert_ne!(
+        r["code"], 200,
+        "should not be able to login after deletion: {r}"
+    );
 
     server_handle.abort();
 }
@@ -417,6 +427,146 @@ async fn test_delete_account_kicks_ws() {
     let kicked = ws_send_recv(&mut ws, r#"{"cmd":"heartbeat","seq":0,"data":{}}"#).await;
     let val: serde_json::Value = serde_json::from_str(&kicked).unwrap();
     assert_eq!(val["cmd"], "kicked", "expected kicked, got: {kicked}");
+
+    server_handle.abort();
+}
+
+/// Friend API: add friend and list friends.
+///
+/// Steps:
+///   1. Register two users, login
+///   2. Alice adds Bob as friend
+///   3. Alice lists friends → Bob should appear
+///   4. Bob lists friends → Alice does NOT appear (not bidirectional)
+#[tokio::test]
+async fn test_friend_add_and_list() {
+    dotenv::dotenv().ok();
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // Register + login Alice
+    let alice = serde_json::json!({"username": "test_friend_alice", "password": "alice123"});
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &alice).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register alice: {r}");
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &alice).await;
+    assert_eq!(r["code"], 200, "alice login: {r}");
+    let alice_token = r["data"].as_str().unwrap().to_string();
+    let alice_uid: Uuid = {
+        let payload = alice_token.split('.').nth(1).unwrap();
+        let decoded = base64_decode(payload);
+        let claims: serde_json::Value = serde_json::from_str(&decoded).unwrap();
+        claims["user_id"].as_str().unwrap().parse().unwrap()
+    };
+
+    // Register + login Bob
+    let bob = serde_json::json!({"username": "test_friend_bob", "password": "bob123"});
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &bob).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register bob: {r}");
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &bob).await;
+    assert_eq!(r["code"], 200, "bob login: {r}");
+    let bob_token = r["data"].as_str().unwrap().to_string();
+    let bob_uid: Uuid = {
+        let payload = bob_token.split('.').nth(1).unwrap();
+        let decoded = base64_decode(payload);
+        let claims: serde_json::Value = serde_json::from_str(&decoded).unwrap();
+        claims["user_id"].as_str().unwrap().parse().unwrap()
+    };
+
+    // Alice adds Bob as friend
+    let r = post_json(
+        &client,
+        &format!("{}/api/friend/add", addr),
+        &serde_json::json!({"token": alice_token, "peer_uid": bob_uid}),
+    )
+    .await;
+    assert_eq!(r["code"], 200, "add friend: {r}");
+
+    // Alice lists friends → should include Bob
+    let r: serde_json::Value = client
+        .get(format!("{}/api/friend/list?token={}", addr, alice_token))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(r["code"], 200, "list friends: {r}");
+    let friends = r["data"].as_array().unwrap();
+    assert!(
+        friends
+            .iter()
+            .any(|f| f["friend_id"] == bob_uid.to_string()),
+        "bob should be in alice's friends: {friends:?}"
+    );
+
+    // Bob lists friends → Alice should NOT appear (not automatically bidirectional)
+    let r: serde_json::Value = client
+        .get(format!("{}/api/friend/list?token={}", addr, bob_token))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(r["code"], 200, "bob list friends: {r}");
+    let bob_friends = r["data"].as_array().unwrap();
+    assert!(
+        !bob_friends
+            .iter()
+            .any(|f| f["friend_id"] == alice_uid.to_string()),
+        "alice should NOT be in bob's friends (not bidirectional)"
+    );
+
+    server_handle.abort();
+}
+
+/// Friend API: adding self should return 400.
+#[tokio::test]
+async fn test_friend_add_self_rejected() {
+    dotenv::dotenv().ok();
+    let db_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&db_url)
+        .await
+        .expect("can't connect to database");
+
+    let client = reqwest::Client::new();
+    let (server_handle, addr) = spawn_server(pool.clone()).await;
+
+    // Register + login
+    let user = serde_json::json!({"username": "test_friend_self", "password": "self123"});
+    let r = post_json(&client, &format!("{}/api/user/register", addr), &user).await;
+    assert!(r["code"] == 200 || r["code"] == 409, "register: {r}");
+    let r = post_json(&client, &format!("{}/api/user/login", addr), &user).await;
+    assert_eq!(r["code"], 200, "login: {r}");
+    let token = r["data"].as_str().unwrap().to_string();
+    let my_uid: Uuid = {
+        let payload = token.split('.').nth(1).unwrap();
+        let decoded = base64_decode(payload);
+        let claims: serde_json::Value = serde_json::from_str(&decoded).unwrap();
+        claims["user_id"].as_str().unwrap().parse().unwrap()
+    };
+
+    // Try to add self as friend
+    let r = post_json(
+        &client,
+        &format!("{}/api/friend/add", addr),
+        &serde_json::json!({"token": token, "peer_uid": my_uid}),
+    )
+    .await;
+    assert_eq!(r["code"], 400, "adding self should return 400: {r}");
 
     server_handle.abort();
 }

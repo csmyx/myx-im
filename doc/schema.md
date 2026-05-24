@@ -190,7 +190,6 @@ sequenceDiagram
     DB-->>Server: msg_id=43
     Server-->>Alice: ACK {msg_id:43, delivered:false}
     Alice->>Alice: ◷ Sent
-    $("chStatus").textContent = "offline"
 
     Note over Bob: Bob reconnects later
     Bob->>Server: GET /im/ws?token=<jwt>
@@ -429,24 +428,30 @@ message bubble and persisted to `localStorage` for survival across reloads.
 ```mermaid
 stateDiagram-v2
     [*] --> Sending: sendMessage()
-    Sending --> Sent: handleAck<br/>delivered=true (peer online)
-    Sending --> Sent: handleAck<br/>delivered=false (peer offline)
-    Sent --> Read: delivery_update<br/>(peer opened chat or mark_seen)
+    Sending --> Sent: handleAck (online or offline)
+    Sent --> Read: delivery_update (mark_seen_from_peer)
     Read --> Read: delivery_update (idempotent)
-    Sending --> Read: delivery_update<br/>(fast path, before ack)
-
-    note "History rendering" as N1
-    Sent --> Read: appendMsg<br/>m.seen=true (from DB)
-    Sent --> Sent: appendMsg<br/>m.seen=false (from DB)
+    Sent --> Read: appendMsg (seen=true)
+    Sent --> Sent: appendMsg (seen=false)
 ```
 
-| State | Label | CSS class | Trigger |
-|-------|-------|-----------|---------|
-| Sending | `◷ Sending...` | `.pending` | Message sent, waiting for ACK |
-| Sent | `◷ Sent` | `.undelivered` | Peer offline, or history seen=false |
-| Read | `✓ Read` | `.delivered` | delivery_update only (peer viewed chat) |
+Each transition explained:
 
-**Persistence**: `handleAck` and `handleDeliveryUpdate` call `saveMsgStatus(id, 'read')`.
+| Transition       | Function                 | Why                                                                  |
+| ---------------- | ------------------------ | -------------------------------------------------------------------- |
+| `Sending → Sent` | `handleAck()`            | ACK returns, clear "Sending...", set `◷ Sent` (online or offline)    |
+| `Sent → Read`    | `handleDeliveryUpdate()` | Received `delivery_update` — peer opened chat or sent `mark_seen`    |
+| `Read → Read`    | `handleDeliveryUpdate()` | Idempotent, repeated `delivery_update` is harmless                   |
+| `Sent → Read`    | `appendMsg()`            | Loading history: `m.seen=true` (already marked in DB), show `✓ Read` |
+| `Sent → Sent`    | `appendMsg()`            | Loading history: `m.seen=false`, keep `◷ Sent`                       |
+
+| State   | Label          | CSS class      | Trigger                                 |
+| ------- | -------------- | -------------- | --------------------------------------- |
+| Sending | `◷ Sending...` | `.pending`     | Message sent, waiting for ACK           |
+| Sent    | `◷ Sent`       | `.undelivered` | Peer offline, or history seen=false     |
+| Read    | `✓ Read`       | `.delivered`   | delivery_update only (peer viewed chat) |
+
+**Persistence**: `handleDeliveryUpdate` calls `saveMsgStatus(id, 'read')`.
 On history load, `appendMsg` checks `localStorage` first, then falls back to `m.seen`.
 
 ---

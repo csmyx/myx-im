@@ -18,11 +18,11 @@ use uuid::Uuid;
 use crate::dao;
 use crate::jwt::verify_token;
 use crate::model::{
-    ChatHistoryItem, ConversationItem, CreateGroupReq, DeleteRequest, DeliveryUpdate,
-    GroupActionReq, GroupChatAck, GroupChatReq, GroupHistoryItem, GroupHistoryQuery, GroupInfo,
-    GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, MarkSeenReq,
-    PrivateChatAck, PrivateChatReq, PrivatePushMsg, RegisterRequest, Res, SearchQuery,
-    TokenQuery, UserSearchItem, WsMessage,
+    AddFriendReq, ChatHistoryItem, ConversationItem, CreateGroupReq, DeleteRequest, DeliveryUpdate,
+    FriendInfo, GroupActionReq, GroupChatAck, GroupChatReq, GroupHistoryItem, GroupHistoryQuery,
+    GroupInfo, GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, MarkSeenReq,
+    PrivateChatAck, PrivateChatReq, PrivatePushMsg, RegisterRequest, Res, SearchQuery, TokenQuery,
+    UserSearchItem, WsMessage,
 };
 use crate::service;
 use crate::state::AppState;
@@ -44,6 +44,8 @@ pub fn app_router(state: Arc<AppState>) -> Router {
         .route("/api/group/list", get(group_list_handler))
         .route("/api/group/members", get(group_members_handler))
         .route("/api/group/history", get(group_history_handler))
+        .route("/api/friend/add", post(friend_add_handler))
+        .route("/api/friend/list", get(friend_list_handler))
         .route("/debug", get(debug_handler))
         .with_state(state)
 }
@@ -588,6 +590,78 @@ async fn user_delete_handler(
                 .into_response()
         }
         Err(err) => err.into_response(),
+    }
+}
+
+// ==================== Friend handlers ====================
+
+async fn friend_add_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<AddFriendReq>,
+) -> impl IntoResponse {
+    let claims = match verify_token(&req.token, &state.config) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("friend add auth failed: {e}");
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(Res::<()>::error(401, "invalid token")),
+            )
+                .into_response();
+        }
+    };
+
+    if claims.user_id == req.peer_uid {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(Res::<()>::error(400, "cannot add self as friend")),
+        )
+            .into_response();
+    }
+
+    match dao::add_friend(&state.pg_pool, claims.user_id, req.peer_uid).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(Res::success("ok".to_string(), "friend added")),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!("add_friend failed: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::<()>::error(500, "add friend failed")),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn friend_list_handler(
+    Query(query): Query<TokenQuery>,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let claims = match verify_token(&query.token, &state.config) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("friend list auth failed: {e}");
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(Res::<Vec<FriendInfo>>::error(401, "invalid token")),
+            )
+                .into_response();
+        }
+    };
+
+    match dao::list_friends(&state.pg_pool, claims.user_id).await {
+        Ok(friends) => (StatusCode::OK, Json(Res::success(friends, "ok"))).into_response(),
+        Err(e) => {
+            tracing::error!("list_friends failed: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Res::<Vec<FriendInfo>>::error(500, "list friends failed")),
+            )
+                .into_response()
+        }
     }
 }
 

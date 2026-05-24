@@ -171,6 +171,35 @@ Idempotent (ON CONFLICT DO NOTHING).
 
 ---
 
+### `POST /api/friend/add`
+
+| Field      | Type         | Notes                 |
+| ---------- | ------------ | --------------------- |
+| `token`    | string (JWT) |
+| `peer_uid` | UUID         | User to add as friend |
+
+Adds a friend (bidirectional). Idempotent (ON CONFLICT DO NOTHING).
+Returns 400 if trying to add self.
+
+---
+
+### `GET /api/friend/list`
+
+| Query param | Type         |
+| ----------- | ------------ |
+| `token`     | string (JWT) |
+
+**Response:** `Res<FriendInfo[]>` — ordered by username.
+
+Each `FriendInfo`:
+| Field        | Type         |
+| ------------ | ------------ |
+| `friend_id`  | UUID         |
+| `username`   | string       |
+| `created_at` | timestamptz? |
+
+---
+
 ## WebSocket Protocol
 
 Connect: `ws://host:port/im/ws?token=<JWT>`

@@ -216,6 +216,47 @@ pub async fn mark_seen_from_peer(
 
     Ok(rows.into_iter().map(|r| r.id).collect())
 }
+
+// ===== Friend DAO =====
+
+pub async fn add_friend(pool: &PgPool, user_id: Uuid, friend_id: Uuid) -> anyhow::Result<()> {
+    sqlx::query!(
+        "INSERT INTO im_friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        user_id,
+        friend_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("add_friend failed: {e}");
+        e
+    })?;
+    Ok(())
+}
+
+pub async fn list_friends(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> anyhow::Result<Vec<crate::model::FriendInfo>> {
+    let rows = sqlx::query_as!(
+        crate::model::FriendInfo,
+        r#"SELECT f.friend_id, u.username, f.created_at
+           FROM im_friends f
+           JOIN im_users u ON u.id = f.friend_id
+           WHERE f.user_id = $1
+           ORDER BY u.username"#,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("list_friends failed: {e}");
+        e
+    })?;
+
+    Ok(rows)
+}
+
 // ===== Group DAO =====
 
 pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow::Result<GroupInfo> {

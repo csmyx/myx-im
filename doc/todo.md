@@ -227,3 +227,17 @@
 - [x] DAO `delete_user` — 按序清理：私聊消息 → 群组 → 群消息 → 已读光标 → 用户记录
 - [x] 前端 Me 页面 "Delete Account" 按钮 + 确认弹窗
 - [x] `tests/integration_test.rs` `test_delete_account_removes_user_and_data`
+
+---
+
+# 好友功能 TODO
+
+### 24. 好友功能 ✅
+
+- [x] DB: `im_friends(user_id, friend_id, created_at)` — 联合主键, ON DELETE CASCADE
+- [x] Model: `AddFriendReq { token, peer_uid }`, `FriendInfo { friend_id, username, created_at }`
+- [x] DAO: `add_friend()` (ON CONFLICT DO NOTHING), `list_friends()`
+- [x] `POST /api/friend/add` — 添加好友，防自添加
+- [x] `GET /api/friend/list` — 好友列表
+- [x] 前端: `👤 Friends` tab + 列表 + 搜索 `+ Add` 按钮 + 点击跳转聊天
+- [x] Integration tests: `test_friend_add_and_list`, `test_friend_add_self_rejected`

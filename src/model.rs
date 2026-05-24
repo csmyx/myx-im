@@ -76,6 +76,21 @@ pub struct WsMessage {
     pub data: serde_json::Value,
 }
 
+/// Add friend request
+#[derive(Debug, Deserialize)]
+pub struct AddFriendReq {
+    pub token: String,
+    pub peer_uid: Uuid,
+}
+
+/// Friend info (returned by friend list)
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct FriendInfo {
+    pub friend_id: Uuid,
+    pub username: String,
+    pub created_at: Option<OffsetDateTime>,
+}
+
 /// Client requests marking all unseen messages from a peer as seen
 /// (sent via WS when user receives a push while viewing that peer's chat)
 #[derive(Debug, Deserialize)]

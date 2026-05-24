@@ -46,3 +46,10 @@ CREATE TABLE im_group_messages (
     client_msg_id TEXT UNIQUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE im_friends (
+    user_id UUID NOT NULL REFERENCES im_users(id) ON DELETE CASCADE,
+    friend_id UUID NOT NULL REFERENCES im_users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, friend_id)
+);

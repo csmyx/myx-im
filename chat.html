@@ -776,8 +776,8 @@
                     autocomplete="current-password" />
                 <div class="err" id="authErr"></div>
                 <div class="btn-row">
-                    <button class="btn btn-primary" onclick="doRegister()">Register</button><button
-                        class="btn btn-outline" onclick="doLogin()">Login</button>
+                    <button class="btn btn-primary" onclick="doRegister()">Register</button>
+                    <button class="btn btn-outline" onclick="doLogin()">Login</button>
                 </div>
             </div>
         </div>
@@ -812,6 +812,16 @@
                 </div>
             </div>
             <div class="list-area" id="groupList"></div>
+        </div>
+
+        <div class="page" id="pageFriends">
+            <div class="page-header">
+                <button class="btn-back" onclick="goTo('chats')">←</button>
+                <div class="info">
+                    <div class="title">Friends</div>
+                </div>
+            </div>
+            <div class="list-area" id="friendList"></div>
         </div>
 
         <div class="page" id="pageChat">
@@ -911,7 +921,10 @@
             <button id="navGroups" onclick="goTo('groups')">
                 <span class="icon">👥</span>Groups
             </button>
-            <button id="navMe" onclick="goTo('me')"><span class="icon">👤</span>Me</button>
+            <button id="navFriends" onclick="goTo('friends')">
+                <span class="icon">👤</span>Friends
+            </button>
+            <button id="navMe" onclick="goTo('me')"><span class="icon">⚙️</span>Me</button>
         </div>
     </div>
 
@@ -963,10 +976,12 @@
     <template id="tplSearchItem">
         <div class="item">
             <div class="sr-avatar"></div>
-            <div></div>
+            <div style="flex:1"></div>
+            <button class="btn-add-friend"
+                style="padding:4px 10px;font-size:11px;border:1px solid var(--primary);color:var(--primary);border-radius:var(--radius-sm)">+
+                Add</button>
         </div>
     </template>
-
     <template id="tplMsgRow">
         <div class="msg-row">
             <div class="m-avatar"></div>
@@ -1007,6 +1022,7 @@
             typingTimer = null,
             typingTimeout = null;
         let groupCache = [],
+            friendCache = [],
             currentPage = null;
         const PAGE_SIZE = 40;
         const $ = (id) => document.getElementById(id);
@@ -1015,6 +1031,7 @@
         const allPages = [
             $("pageChats"),
             $("pageGroups"),
+            $("pageFriends"),
             $("pageChat"),
             $("pageGroupChat"),
             $("pageMe"),
@@ -1027,18 +1044,22 @@
                     ? $("pageChats")
                     : page === "groups"
                         ? $("pageGroups")
-                        : page === "chat"
-                            ? $("pageChat")
-                            : page === "groupChat"
-                                ? $("pageGroupChat")
-                                : $("pageMe");
+                        : page === "friends"
+                            ? $("pageFriends")
+                            : page === "chat"
+                                ? $("pageChat")
+                                : page === "groupChat"
+                                    ? $("pageGroupChat")
+                                    : $("pageMe");
             if (t) t.classList.add("active");
             currentPage = page;
             $("navChats").classList.toggle("active", page === "chats");
             $("navGroups").classList.toggle("active", page === "groups");
+            $("navFriends").classList.toggle("active", page === "friends");
             $("navMe").classList.toggle("active", page === "me");
             if (page === "chats") loadConversations();
             if (page === "groups") loadGroupList();
+            if (page === "friends") loadFriendList();
             if (page === "me") {
                 $("meAvatar").textContent = me.username[0].toUpperCase();
                 $("meName").textContent = me.username;
@@ -1730,6 +1751,44 @@
             }
         }
 
+        async function loadFriendList() {
+            if (!me) return;
+            const d = await api("/api/friend/list?token=" + encodeURIComponent(me.token));
+            if (d.code !== 200) return;
+            friendCache = d.data || [];
+            renderFriendList();
+        }
+        function renderFriendList() {
+            const el = $("friendList");
+            el.replaceChildren();
+            if (friendCache.length === 0) {
+                const d = tpl("EmptyState");
+                d.innerHTML = "No friends yet.<br>Search users and add them as friends.";
+                el.appendChild(d);
+                return;
+            }
+            for (const f of friendCache) {
+                const item = tpl("ConvItem");
+                item.querySelector(".li-avatar").textContent = f.username[0].toUpperCase();
+                item.querySelector(".li-name").textContent = f.username;
+                item.querySelector(".li-last").textContent = "";
+                item.querySelector(".li-time").textContent = "";
+                item.onclick = () => openChat(f.friend_id, f.username);
+                el.appendChild(item);
+            }
+        }
+        async function addFriend(uid, name) {
+            if (!me) return;
+            const d = await api("/api/friend/add", {
+                method: "POST",
+                body: JSON.stringify({ token: me.token, peer_uid: uid }),
+            });
+            if (d.code === 200) {
+                const btn = document.getElementById("btnAddFriend");
+                if (btn) { btn.textContent = "✓ Friend"; btn.disabled = true }
+            }
+        }
+
         function openModal(t) {
             $("modalOverlay").classList.add("show");
             $("groupErr").textContent = "";
@@ -1806,8 +1865,10 @@
                 for (const u of d.data) {
                     const item = tpl("SearchItem");
                     item.querySelector(".sr-avatar").textContent = u.username[0].toUpperCase();
-                    item.lastElementChild.textContent = u.username;
-                    item.onclick = () => startChat(u.id, u.username);
+                    item.querySelector("div:nth-of-type(2)").textContent = u.username;
+                    item.querySelector("div:nth-of-type(2)").onclick = () => startChat(u.id, u.username);
+                    const btn = item.querySelector(".btn-add-friend");
+                    btn.onclick = (e) => { e.stopPropagation(); addFriend(u.id, u.username) };
                     el.appendChild(item);
                 }
                 el.classList.add("show");
