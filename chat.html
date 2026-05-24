@@ -1080,7 +1080,8 @@
             const s = e.el.querySelector('.msg-status');
             if (m.data && m.data.msg_id) { e.msg.msg_id = m.data.msg_id; msgById[m.data.msg_id] = e.el }
             if (m.data && m.data.delivered) {
-                if (s) { s.innerHTML = '<span class="delivered">\u2713 Read</span>'; saveMsgStatus(m.data.msg_id, 'read') }
+                if (s) s.innerHTML = '';
+                $('chStatus').textContent = 'online'; $('chStatus').style.color = 'var(--accent)'
             } else {
                 if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
                 $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)'
