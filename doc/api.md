@@ -16,10 +16,10 @@ Returns `debug.html` (development only).
 
 ### `POST /api/user/register`
 
-| Field | Type | Notes |
-|-------|------|-------|
+| Field      | Type   | Notes              |
+| ---------- | ------ | ------------------ |
 | `username` | string | 3-20 chars, unique |
-| `password` | string | ≥6 chars |
+| `password` | string | ≥6 chars           |
 
 **Response:** `Res<{ token }>` — JWT token on success (code 200), 409 if user exists.
 
@@ -27,8 +27,8 @@ Returns `debug.html` (development only).
 
 ### `POST /api/user/login`
 
-| Field | Type |
-|-------|------|
+| Field      | Type   |
+| ---------- | ------ |
 | `username` | string |
 | `password` | string |
 
@@ -38,8 +38,8 @@ Returns `debug.html` (development only).
 
 ### `POST /api/user/logout`
 
-| Field | Type |
-|-------|------|
+| Field      | Type   |
+| ---------- | ------ |
 | `username` | string |
 | `password` | string |
 
@@ -49,8 +49,8 @@ Removes the user from the online-users map and closes their WS connection.
 
 ### `POST /api/user/delete`
 
-| Field | Type |
-|-------|------|
+| Field   | Type         |
+| ------- | ------------ |
 | `token` | string (JWT) |
 
 Deletes user + all messages + groups owned + cursors. Also kicks active WS sessions via `kicked` push.
@@ -59,12 +59,12 @@ Deletes user + all messages + groups owned + cursors. Also kicks active WS sessi
 
 ### `GET /api/message/history`
 
-| Query param | Type | Notes |
-|-------------|------|-------|
-| `token` | string | JWT |
-| `peer_uid` | UUID | Chat partner |
-| `before` | i64? | Pagination cursor (msg_id < this) |
-| `limit` | i64? | Default 50, max 100 |
+| Query param | Type   | Notes                             |
+| ----------- | ------ | --------------------------------- |
+| `token`     | string | JWT                               |
+| `peer_uid`  | UUID   | Chat partner                      |
+| `before`    | i64?   | Pagination cursor (msg_id < this) |
+| `limit`     | i64?   | Default 50, max 100               |
 
 **Response:** `Res<ChatHistoryItem[]>`
 
@@ -72,23 +72,23 @@ Deletes user + all messages + groups owned + cursors. Also kicks active WS sessi
 If any messages were newly marked, pushes `delivery_update` to the peer via WS.
 
 Each `ChatHistoryItem`:
-| Field | Type |
-|-------|------|
-| `msg_id` | i64 |
-| `from_uid` | UUID |
-| `to_uid` | UUID |
-| `content` | string |
-| `msg_type` | i16 (1=text) |
-| `seen` | bool |
+| Field       | Type          |
+| ----------- | ------------- |
+| `msg_id`    | i64           |
+| `from_uid`  | UUID          |
+| `to_uid`    | UUID          |
+| `content`   | string        |
+| `msg_type`  | i16 (1=text)  |
+| `seen`      | bool          |
 | `send_time` | i64 (unix ms) |
 
 ---
 
 ### `GET /api/conversations`
 
-| Query param | Type |
-|-------------|------|
-| `token` | string (JWT) |
+| Query param | Type         |
+| ----------- | ------------ |
+| `token`     | string (JWT) |
 
 **Response:** `Res<ConversationItem[]>` — one entry per peer, ordered by latest message.
 
@@ -96,11 +96,11 @@ Each `ChatHistoryItem`:
 
 ### `GET /api/user/search`
 
-| Query param | Type | Notes |
-|-------------|------|-------|
-| `token` | string (JWT) |
-| `q` | string | ILIKE `%q%` match |
-| `limit` | i64? | Default 20, max 50 |
+| Query param | Type         | Notes              |
+| ----------- | ------------ | ------------------ |
+| `token`     | string (JWT) |
+| `q`         | string       | ILIKE `%q%` match  |
+| `limit`     | i64?         | Default 20, max 50 |
 
 **Response:** `Res<UserSearchItem[]>` — excludes self.
 
@@ -108,10 +108,10 @@ Each `ChatHistoryItem`:
 
 ### `POST /api/group/create`
 
-| Field | Type |
-|-------|------|
+| Field   | Type         |
+| ------- | ------------ |
 | `token` | string (JWT) |
-| `name` | string |
+| `name`  | string       |
 
 Creates group, owner auto-joined as member.
 
@@ -119,10 +119,10 @@ Creates group, owner auto-joined as member.
 
 ### `POST /api/group/join`
 
-| Field | Type |
-|-------|------|
-| `token` | string (JWT) |
-| `group_id` | UUID |
+| Field      | Type         |
+| ---------- | ------------ |
+| `token`    | string (JWT) |
+| `group_id` | UUID         |
 
 Idempotent (ON CONFLICT DO NOTHING).
 
@@ -130,18 +130,18 @@ Idempotent (ON CONFLICT DO NOTHING).
 
 ### `POST /api/group/leave`
 
-| Field | Type |
-|-------|------|
-| `token` | string (JWT) |
-| `group_id` | UUID |
+| Field      | Type         |
+| ---------- | ------------ |
+| `token`    | string (JWT) |
+| `group_id` | UUID         |
 
 ---
 
 ### `GET /api/group/list`
 
-| Query param | Type |
-|-------------|------|
-| `token` | string (JWT) |
+| Query param | Type         |
+| ----------- | ------------ |
+| `token`     | string (JWT) |
 
 **Response:** `Res<GroupInfo[]>` — groups the user is a member of.
 
@@ -149,10 +149,10 @@ Idempotent (ON CONFLICT DO NOTHING).
 
 ### `GET /api/group/members`
 
-| Query param | Type |
-|-------------|------|
-| `token` | string (JWT) |
-| `group_id` | UUID |
+| Query param | Type         |
+| ----------- | ------------ |
+| `token`     | string (JWT) |
+| `group_id`  | UUID         |
 
 **Response:** `Res<GroupMember[]>`.
 
@@ -160,12 +160,12 @@ Idempotent (ON CONFLICT DO NOTHING).
 
 ### `GET /api/group/history`
 
-| Query param | Type | Notes |
-|-------------|------|-------|
-| `token` | string (JWT) |
-| `group_id` | UUID |
-| `before` | i64? | Pagination cursor |
-| `limit` | i64? | Default 50, max 100 |
+| Query param | Type         | Notes               |
+| ----------- | ------------ | ------------------- |
+| `token`     | string (JWT) |
+| `group_id`  | UUID         |
+| `before`    | i64?         | Pagination cursor   |
+| `limit`     | i64?         | Default 50, max 100 |
 
 **Response:** `Res<GroupHistoryItem[]>`.
 
@@ -181,25 +181,25 @@ All messages are JSON: `{cmd, seq, data}`.
 
 ### Client → Server (WS Commands)
 
-| cmd | data | Notes |
-|-----|------|-------|
-| `heartbeat` | — | No-op keepalive |
-| `typing` | `{to_uid}` | Forwarded to peer |
-| `mark_seen` | `{to_uid}` | Mark peer's messages as seen (see below) |
-| `private_chat` | `{to_uid, content, msg_type, client_msg_id?}` | Send private message |
-| `group_chat` | `{group_id, content, msg_type, client_msg_id?}` | Send group message |
+| cmd            | data                                            | Notes                                    |
+| -------------- | ----------------------------------------------- | ---------------------------------------- |
+| `heartbeat`    | —                                               | No-op keepalive                          |
+| `typing`       | `{to_uid}`                                      | Forwarded to peer                        |
+| `mark_seen`    | `{to_uid}`                                      | Mark peer's messages as seen (see below) |
+| `private_chat` | `{to_uid, content, msg_type, client_msg_id?}`   | Send private message                     |
+| `group_chat`   | `{group_id, content, msg_type, client_msg_id?}` | Send group message                       |
 
 ### Server → Client (WS Pushes)
 
-| cmd | data | Notes |
-|-----|------|-------|
-| `private_push` | `PrivatePushMsg` | New private message from peer |
-| `group_push` | `GroupPushMsg` | New group message |
-| `private_chat_ack` | `PrivateChatAck` | Confirm message saved + delivery status |
-| `group_chat_ack` | `GroupChatAck` | Confirm group message saved |
-| `delivery_update` | `{msg_ids, to_uid}` | Messages now marked seen by peer |
-| `typing` | `{from_uid}` | Peer is typing |
-| `kicked` | `{msg}` | Session terminated (duplicate login / account deleted) |
+| cmd                | data                | Notes                                                  |
+| ------------------ | ------------------- | ------------------------------------------------------ |
+| `private_push`     | `PrivatePushMsg`    | New private message from peer                          |
+| `group_push`       | `GroupPushMsg`      | New group message                                      |
+| `private_chat_ack` | `PrivateChatAck`    | Confirm message saved + delivery status                |
+| `group_chat_ack`   | `GroupChatAck`      | Confirm group message saved                            |
+| `delivery_update`  | `{msg_ids, to_uid}` | Messages now marked seen by peer                       |
+| `typing`           | `{from_uid}`        | Peer is typing                                         |
+| `kicked`           | `{msg}`             | Session terminated (duplicate login / account deleted) |
 
 ---
 
