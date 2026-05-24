@@ -133,11 +133,12 @@ sequenceDiagram
 ## Private Chat — Full Flow (v2 — seen-marking in history endpoint)
 
 > **Change from v1:** The `mark_delivered` WS command is removed. Instead, seen-marking
-> happens in two places:
+> happens in two places via a single `mark_seen_from_peer` (UPDATE RETURNING id):
 > 1. When the receiver fetches chat history via `GET /api/message/history` (open chat).
 > 2. When the receiver sends a reply via `private_chat` (replying implies reading).
 > In both cases, the backend marks unseen messages `seen=TRUE` and pushes a
 > `delivery_update` to the sender. Column renamed `delivered` → `seen`.
+> Frontend shows only two states: ◷ Sending → ✓ Read.
 
 ```mermaid
 sequenceDiagram
@@ -171,27 +172,27 @@ sequenceDiagram
     DB-->>Server: msg_id=42
     Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello", send_time}
     Server-->>Alice: ACK {cmd:"private_chat_ack", data:{msg_id:42, delivered:true}}
-    Alice->>Alice: ✓ Delivered
+    Alice->>Alice: ✓ Read
     Bob->>Bob: Show "hello"
 
     Note over Alice, Bob: === Bob opens Alice's chat (loads history) ===
     Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
-    Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
+    Server->>DB: UPDATE seen=TRUE RETURNING id<br/>(mark_seen_from_peer)
     Server->>DB: SELECT chat history (ORDER BY id DESC LIMIT 50)
     Server-->>Bob: 200 {history items}
     Server->>Alice: Push delivery_update {msg_ids:[42], to_uid:Bob}
-    Alice->>Alice: ✓ Delivered → ✓ Read
+    Alice->>Alice: ✓ Read
 
     Note over Alice, Bob: === Bob replies (marks Alice's messages as seen) ===
     Bob->>Server: WS {cmd:"private_chat", data:{to_uid:Alice, content:"hi back"}}
     Server->>DB: INSERT im_chat_messages (seen=FALSE)
     DB-->>Server: msg_id=43
-    Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
+    Server->>DB: UPDATE seen=TRUE RETURNING id<br/>(mark_seen_from_peer)
     Server->>Bob: ACK {msg_id:43, delivered:true}
     Server->>Alice: Push PrivatePushMsg {from_uid:Bob, content:"hi back"}
     Server->>Alice: Push delivery_update {msg_ids:[...], to_uid:Bob}
     Alice->>Alice: ✓ Read
-    Bob->>Bob: ✓ Delivered
+    Bob->>Bob: ✓ Read
 
     Note over Alice, Bob: === Alice sends to offline Bob ===
     Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"you there?"}}
