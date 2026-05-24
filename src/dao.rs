@@ -192,35 +192,25 @@ pub async fn get_unseen_messages(
     Ok(rows)
 }
 
-pub async fn mark_messages_seen(pool: &PgPool, msg_ids: &[i64]) -> anyhow::Result<()> {
-    if msg_ids.is_empty() {
-        return Ok(());
-    }
-    sqlx::query("UPDATE im_chat_messages SET seen = TRUE WHERE id = ANY($1)")
-        .bind(msg_ids)
-        .execute(pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("mark_messages_seen failed: {e}");
-            e
-        })?;
-    Ok(())
-}
-
-pub async fn get_unseen_ids_from_peer(
+/// Mark all unseen messages from `from_uid` to `to_uid` as seen.
+/// Returns the IDs of the messages that were just marked.
+pub async fn mark_seen_from_peer(
     pool: &PgPool,
     from_uid: Uuid,
     to_uid: Uuid,
 ) -> anyhow::Result<Vec<i64>> {
     let rows = sqlx::query!(
-        "SELECT id FROM im_chat_messages WHERE from_uid = $1 AND to_uid = $2 AND seen = FALSE ORDER BY id",
+        r#"UPDATE im_chat_messages
+           SET seen = TRUE
+           WHERE from_uid = $1 AND to_uid = $2 AND seen = FALSE
+           RETURNING id"#,
         from_uid,
         to_uid,
     )
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("get_unseen_ids_from_peer failed: {e}");
+        tracing::error!("mark_seen_from_peer failed: {e}");
         e
     })?;
 

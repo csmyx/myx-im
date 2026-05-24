@@ -1078,7 +1078,7 @@
             const s = e.el.querySelector('.msg-status');
             if (m.data && m.data.msg_id) { e.msg.msg_id = m.data.msg_id; msgById[m.data.msg_id] = e.el }
             if (m.data && m.data.delivered) {
-                if (s) { s.innerHTML = '<span class="delivered">\u2713 Delivered</span>'; saveMsgStatus(m.data.msg_id, 'delivered') }
+                if (s) { s.innerHTML = '<span class="delivered">\u2713 Read</span>'; saveMsgStatus(m.data.msg_id, 'read') }
             } else {
                 if (s) s.innerHTML = '';
                 $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)'
@@ -1183,7 +1183,6 @@
             if (!s && isMine && m.msg_id) {
                 const sv = getMsgStatus(m.msg_id);
                 if (sv === 'read') s = '<span class="delivered">\u2713 Read</span>'
-                else if (sv === 'delivered') s = '<span class="delivered">\u2713 Delivered</span>'
                 else if (m.seen) s = '<span class="delivered">\u2713 Read</span>'
             }
             const div = tpl('MsgRow');
