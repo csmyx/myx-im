@@ -133,11 +133,11 @@ sequenceDiagram
 ## Private Chat — Full Flow (v2 — seen-marking in history endpoint)
 
 > **Change from v1:** The `mark_delivered` WS command is removed. Instead, seen-marking
-> happens in two places via `mark_seen_from_peer` (UPDATE RETURNING id):
+> happens via `mark_seen_from_peer` (UPDATE RETURNING id) in two places:
 > 1. Open chat → `GET /api/message/history` marks unseen and pushes `delivery_update`.
 > 2. Receive push while viewing chat → frontend sends `mark_seen` WS command.
-> Only when the user is actually in the peer's chat interface. Column renamed
-> `delivered` → `seen`. Frontend shows three states: ◷ Sending → ◷ Sent → ✓ Read.
+> Column renamed `delivered` → `seen`. Frontend states:
+> ◷ Sending → ◷ Sent (offline) / ✓ Read (online) → ✓ Read (delivery_update).
 
 ```mermaid
 sequenceDiagram
@@ -184,35 +184,25 @@ sequenceDiagram
     Server-->>Bob: 200 {history items}
     Server->>Alice: Push delivery_update {msg_ids:[...], to_uid:Bob}
 
-    Note over Alice, Bob: === Bob replies (marks Alice's messages as seen) ===
-    Bob->>Server: WS {cmd:"private_chat", data:{to_uid:Alice, content:"hi back"}}
-    Server->>DB: INSERT im_chat_messages (seen=FALSE)
-    DB-->>Server: msg_id=43
-    Server->>DB: UPDATE seen=TRUE RETURNING id<br/>(mark_seen_from_peer)
-    Server->>Bob: ACK {msg_id:43, delivered:true}
-    Server->>Alice: Push PrivatePushMsg {from_uid:Bob, content:"hi back"}
-    Server->>Alice: Push delivery_update {msg_ids:[...], to_uid:Bob}
-    Alice->>Alice: ✓ Read
-    Bob->>Bob: ✓ Read
-
     Note over Alice, Bob: === Alice sends to offline Bob ===
     Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"you there?"}}
     Server->>DB: INSERT (seen=FALSE)
-    DB-->>Server: msg_id=44
-    Server-->>Alice: ACK {msg_id:44, delivered:false}
-    Alice->>Alice: ◷ Sent (offline)
+    DB-->>Server: msg_id=43
+    Server-->>Alice: ACK {msg_id:43, delivered:false}
+    Alice->>Alice: ◷ Sent
+    $("chStatus").textContent = "offline"
 
     Note over Bob: Bob reconnects later
     Bob->>Server: GET /im/ws?token=<jwt>
     Server->>DB: SELECT unseen WHERE to_uid=Bob (seen=FALSE)
-    Server-->>Bob: Push [msg_id=44, from_uid=Alice, content:"you there?"]
+    Server-->>Bob: Push [msg_id=43, from_uid=Alice, content:"you there?"]
     Bob->>Bob: Show "you there?" + unread badge 🔴1
 
     Note over Bob: Bob opens Alice's chat
     Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
     Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
     Server-->>Bob: 200 {history items}
-    Server->>Alice: Push delivery_update {msg_ids:[44], to_uid:Bob}
+    Server->>Alice: Push delivery_update {msg_ids:[43], to_uid:Bob}
     Alice->>Alice: ◷ Sent → ✓ Read
 ```
 
