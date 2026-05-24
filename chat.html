@@ -1053,6 +1053,7 @@
                                     : $("pageMe");
             if (t) t.classList.add("active");
             currentPage = page;
+            document.title = me ? me.username + " - myx-im" : "myx-im";
             $("navChats").classList.toggle("active", page === "chats");
             $("navGroups").classList.toggle("active", page === "groups");
             $("navFriends").classList.toggle("active", page === "friends");
