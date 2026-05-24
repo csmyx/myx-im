@@ -132,6 +132,29 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
                 }
                 Err(e) => tracing::error!("get_unseen_messages failed: {e}"),
             }
+
+            // Sync unseen group messages on reconnect
+            match dao::get_unseen_group_messages(&pool, user_id, 200).await {
+                Ok(msgs) => {
+                    for msg in &msgs {
+                        let push = GroupPushMsg {
+                            group_id: msg.group_id,
+                            from_uid: msg.from_uid,
+                            from_name: msg.from_name.clone(),
+                            content: msg.content.clone(),
+                            msg_type: msg.msg_type as u8,
+                            send_time: msg.send_time as u64,
+                        };
+                        if let Ok(json) = serde_json::to_string(&push) {
+                            let _ = tx.send(Utf8Bytes::from(format!(
+                                r#"{{"cmd":"group_push","seq":0,"data":{}}}"#,
+                                json
+                            )));
+                        }
+                    }
+                }
+                Err(e) => tracing::error!("get_unseen_group_messages failed: {e}"),
+            }
         });
     }
 
@@ -878,7 +901,7 @@ async fn group_history_handler(
     Query(query): Query<GroupHistoryQuery>,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let _claims = match verify_token(&query.token, &state.config) {
+    let claims = match verify_token(&query.token, &state.config) {
         Ok(c) => c,
         Err(e) => {
             tracing::warn!("group history auth failed: {e}");
@@ -893,7 +916,19 @@ async fn group_history_handler(
     let limit = query.limit.unwrap_or(50).min(100);
 
     match dao::get_group_history(&state.pg_pool, query.group_id, query.before, limit).await {
-        Ok(items) => (StatusCode::OK, Json(Res::success(items, "ok"))).into_response(),
+        Ok(items) => {
+            // Mark as read: upsert cursor to the latest message ID
+            if let Some(latest) = items.iter().map(|m| m.msg_id).max() {
+                let _ = dao::upsert_group_read_cursor(
+                    &state.pg_pool,
+                    claims.user_id,
+                    query.group_id,
+                    latest,
+                )
+                .await;
+            }
+            (StatusCode::OK, Json(Res::success(items, "ok"))).into_response()
+        }
         Err(e) => {
             tracing::error!("get_group_history failed: {e}");
             (

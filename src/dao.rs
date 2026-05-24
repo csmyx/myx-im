@@ -497,6 +497,31 @@ pub async fn get_group_history(
     Ok(rows)
 }
 
+/// Get unseen group message count for a user (for unread badges).
+pub async fn get_unseen_group_counts(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> anyhow::Result<Vec<(Uuid, i64)>> {
+    // purpose: count unseen messages per group for unread badges
+    let rows = sqlx::query!(
+        r#"SELECT gm.group_id, COUNT(gm.id) as "count!: i64"
+           FROM im_group_messages gm
+           JOIN im_group_members m ON m.group_id = gm.group_id AND m.user_id = $1
+           LEFT JOIN im_group_read_cursors cr ON cr.user_id = $1 AND cr.group_id = gm.group_id
+           WHERE gm.id > COALESCE(cr.last_read_msg_id, 0)
+           GROUP BY gm.group_id"#,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_unseen_group_counts failed: {e}");
+        e
+    })?;
+
+    Ok(rows.into_iter().map(|r| (r.group_id, r.count)).collect())
+}
+
 pub async fn persist_group_message(
     pool: &PgPool,
     group_id: Uuid,
@@ -613,6 +638,69 @@ pub async fn upsert_read_cursor(
         e
     })?;
     Ok(())
+}
+
+// ===== Group Read Cursor DAO =====
+
+pub async fn upsert_group_read_cursor(
+    pool: &PgPool,
+    user_id: Uuid,
+    group_id: Uuid,
+    last_read_msg_id: i64,
+) -> anyhow::Result<()> {
+    // purpose: upsert group read cursor (user has seen up to this message in this group)
+    sqlx::query!(
+        r#"INSERT INTO im_group_read_cursors (user_id, group_id, last_read_msg_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, group_id) DO UPDATE SET last_read_msg_id = GREATEST(im_group_read_cursors.last_read_msg_id, $3)"#,
+        user_id,
+        group_id,
+        last_read_msg_id,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("upsert_group_read_cursor failed: {e}");
+        e
+    })?;
+    Ok(())
+}
+
+pub async fn get_unseen_group_messages(
+    pool: &PgPool,
+    user_id: Uuid,
+    limit: i64,
+) -> anyhow::Result<Vec<GroupHistoryItem>> {
+    // purpose: fetch group messages the user hasn't seen yet, for offline sync on reconnect
+    let rows = sqlx::query_as!(
+        GroupHistoryItem,
+        r#"
+        SELECT
+            gm.id AS msg_id,
+            gm.group_id,
+            gm.from_uid,
+            u.username AS from_name,
+            gm.content,
+            gm.msg_type,
+            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS "send_time!"
+        FROM im_group_messages gm
+        JOIN im_users u ON u.id = gm.from_uid
+        LEFT JOIN im_group_read_cursors cr ON cr.user_id = $1 AND cr.group_id = gm.group_id
+        WHERE gm.id > COALESCE(cr.last_read_msg_id, 0)
+        ORDER BY gm.id ASC
+        LIMIT $2
+        "#,
+        user_id,
+        limit,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_unseen_group_messages failed: {e}");
+        e
+    })?;
+
+    Ok(rows)
 }
 
 pub async fn get_conversations(pool: &PgPool, uid: Uuid) -> anyhow::Result<Vec<ConversationItem>> {

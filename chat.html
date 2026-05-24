@@ -1017,7 +1017,8 @@
         let activePeer = null,
             activeGroup = null,
             convCache = [],
-            unreadCounts = {};
+            unreadCounts = {},
+            groupUnreadCounts = {};
         let pendingMsgs = {},
             msgById = {},
             typingTimer = null,
@@ -1317,6 +1318,10 @@
                     },
                     $("gmsgList"),
                 );
+            else if (d.from_uid !== me.uid) {
+                groupUnreadCounts[d.group_id] = (groupUnreadCounts[d.group_id] || 0) + 1;
+                renderGroupList();
+            }
         }
 
         function handleAck(m) {
@@ -1600,6 +1605,7 @@
         function openGroupChat(gid, gn) {
             activeGroup = gid;
             activePeer = null;
+            if (groupUnreadCounts[gid]) delete groupUnreadCounts[gid];
             if (!peers[gid]) peers[gid] = { username: gn };
             $("gchName").textContent = gn;
             groupMessages = [];
@@ -1750,6 +1756,12 @@
             for (const g of groupCache) {
                 const item = tpl("GroupItem");
                 item.querySelector(".li-name").textContent = g.name;
+                if (groupUnreadCounts[g.group_id]) {
+                    const badge = document.createElement("span");
+                    badge.className = "badge";
+                    badge.textContent = groupUnreadCounts[g.group_id];
+                    item.querySelector(".li-name").appendChild(badge);
+                }
                 item.querySelector(".li-last").textContent = g.member_count + " members, by " + (g.owner_name || "?");
                 item.onclick = () => openGroupChat(g.group_id, g.name);
                 el.appendChild(item);

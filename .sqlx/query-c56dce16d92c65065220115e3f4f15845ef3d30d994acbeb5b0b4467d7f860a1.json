@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            gm.id AS msg_id,\n            gm.group_id,\n            gm.from_uid,\n            u.username AS from_name,\n            gm.content,\n            gm.msg_type,\n            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS \"send_time!\"\n        FROM im_group_messages gm\n        JOIN im_users u ON u.id = gm.from_uid\n        LEFT JOIN im_group_read_cursors cr ON cr.user_id = $1 AND cr.group_id = gm.group_id\n        WHERE gm.id > COALESCE(cr.last_read_msg_id, 0)\n        ORDER BY gm.id ASC\n        LIMIT $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "msg_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "group_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "from_uid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "from_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "msg_type",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "send_time!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "c56dce16d92c65065220115e3f4f15845ef3d30d994acbeb5b0b4467d7f860a1"
+}

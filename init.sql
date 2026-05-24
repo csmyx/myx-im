@@ -48,6 +48,13 @@ CREATE TABLE im_group_messages (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE im_group_read_cursors (
+    user_id UUID NOT NULL REFERENCES im_users(id) ON DELETE CASCADE,
+    group_id UUID NOT NULL REFERENCES im_groups(id) ON DELETE CASCADE,
+    last_read_msg_id BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, group_id)
+);
+
 CREATE TABLE im_friends (
     user_id UUID NOT NULL REFERENCES im_users(id) ON DELETE CASCADE,
     friend_id UUID NOT NULL REFERENCES im_users(id) ON DELETE CASCADE,

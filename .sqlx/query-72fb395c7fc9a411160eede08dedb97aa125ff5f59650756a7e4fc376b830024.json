@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT gm.group_id, COUNT(gm.id) as \"count!: i64\"\n           FROM im_group_messages gm\n           JOIN im_group_members m ON m.group_id = gm.group_id AND m.user_id = $1\n           LEFT JOIN im_group_read_cursors cr ON cr.user_id = $1 AND cr.group_id = gm.group_id\n           WHERE gm.id > COALESCE(cr.last_read_msg_id, 0)\n           GROUP BY gm.group_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "group_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "72fb395c7fc9a411160eede08dedb97aa125ff5f59650756a7e4fc376b830024"
+}
