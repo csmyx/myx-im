@@ -68,82 +68,101 @@ impl<T> Res<T> {
 /// Top-level unified message
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WsMessage {
+    /// Command type: "private_chat", "group_chat", "heartbeat", "typing", "mark_delivered", "kicked"
     pub cmd: String,
+    /// Client-assigned sequence number for request-response correlation
     pub seq: u64,
+    /// Command-specific payload (PrivateChatReq, GroupChatReq, etc.)
     pub data: serde_json::Value,
 }
 
-/// Private chat upstream
+/// Private chat upstream (client → server via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateChatReq {
     pub to_uid: Uuid,
     pub content: String,
+    /// Message type: 1 = text
     pub msg_type: u8,
     pub extra: Option<String>,
+    /// Client-generated unique ID for idempotency (ON CONFLICT DO NOTHING)
     pub client_msg_id: Option<String>,
 }
 
-/// Private chat downstream push
+/// Private chat downstream push (server → recipient via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivatePushMsg {
     pub from_uid: Uuid,
+    /// Sender's username (looked up from DB, included so frontend doesn't need a separate query)
     pub from_name: String,
     pub to_uid: Uuid,
     pub content: String,
     pub msg_type: u8,
+    /// Unix timestamp in milliseconds when the message was saved
     pub send_time: u64,
 }
 
-/// Private chat send confirmation
+/// Private chat send confirmation (server → sender via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivateChatAck {
+    /// Database-assigned message ID
     pub msg_id: i64,
+    /// Server-assigned send time (ms)
     pub send_time: u64,
+    /// true = forwarded to online recipient, false = recipient offline (saved pending delivery)
     pub delivered: bool,
 }
 
 /// Notify sender that previously-undelivered messages are now delivered
+/// (sent when recipient opens the chat, triggering mark_delivered)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeliveryUpdate {
+    /// IDs of messages that are now marked delivered
     pub msg_ids: Vec<i64>,
+    /// The recipient who read them, so frontend knows which conversation to update
     pub to_uid: Uuid,
 }
 
-/// Client requests marking messages from a peer as delivered
+/// Client requests marking all undelivered messages from a peer as delivered
+/// (sent when user opens a chat conversation)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MarkDeliveredReq {
     pub peer_uid: Uuid,
 }
 
-/// Notify sender that recipient has read up to a message
+/// Notify sender that recipient has read up to a specific message
+/// (tied to im_read_cursors table, sent after mark_delivered updates the cursor)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReadReceipt {
     pub peer_uid: Uuid,
+    /// The highest message ID the recipient has seen in this conversation
     pub last_read_msg_id: i64,
 }
 
-/// Group chat upstream
+/// Group chat upstream (client → server via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupChatReq {
     pub group_id: Uuid,
     pub content: String,
     pub msg_type: u8,
+    /// Client-generated unique ID for idempotency
     pub client_msg_id: Option<String>,
 }
 
-/// Group chat send confirmation
+/// Group chat send confirmation (server → sender via WS)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupChatAck {
     pub msg_id: i64,
     pub send_time: u64,
+    /// Number of online group members who received the push
     pub online_count: usize,
 }
 
-/// Group chat downstream push
+/// Group chat downstream push (server → all online group members except sender)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupPushMsg {
     pub group_id: Uuid,
     pub from_uid: Uuid,
+    /// Sender's username (from DB join)
     pub from_name: String,
     pub content: String,
     pub msg_type: u8,
@@ -205,7 +224,9 @@ pub struct GroupQuery {
 pub struct GroupHistoryQuery {
     pub token: String,
     pub group_id: Uuid,
+    /// Pagination cursor: return messages with msg_id < this value (exclusive)
     pub before: Option<i64>,
+    /// Max messages to return (default 50, max 100)
     pub limit: Option<i64>,
 }
 
@@ -216,12 +237,14 @@ pub struct ErrorReply {
     pub msg: String,
 }
 
-/// Chat history query parameters
+/// Chat history query parameters (GET /api/message/history)
 #[derive(Debug, Deserialize)]
 pub struct HistoryQuery {
     pub token: String,
     pub peer_uid: Uuid,
+    /// Pagination cursor: return messages with msg_id < this value (exclusive)
     pub before: Option<i64>,
+    /// Max messages to return (default 50, max 100)
     pub limit: Option<i64>,
 }
 
@@ -236,18 +259,21 @@ pub struct DeleteRequest {
     pub token: String,
 }
 
-/// Chat history entry
+/// Chat history entry (returned by GET /api/message/history)
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct ChatHistoryItem {
+    /// Database message ID (BIGSERIAL), used as pagination cursor
     pub msg_id: i64,
     pub from_uid: Uuid,
     pub to_uid: Uuid,
     pub content: String,
+    /// 1 = text
     pub msg_type: i16,
-    pub send_time: i64, // Unix timestamp in milliseconds
+    /// Unix timestamp in milliseconds (EXTRACT EPOCH from created_at)
+    pub send_time: i64,
 }
 
-/// Conversation list item
+/// Conversation list item (returned by GET /api/conversations — DISTINCT ON peer with latest msg)
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct ConversationItem {
     pub peer_uid: Uuid,
@@ -258,11 +284,13 @@ pub struct ConversationItem {
     pub last_msg_id: i64,
 }
 
-/// User search parameters
+/// User search parameters (GET /api/user/search)
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
     pub token: String,
+    /// Search keyword (ILIKE %q% match on username)
     pub q: String,
+    /// Max results to return (default 20, max 50)
     pub limit: Option<i64>,
 }
 
