@@ -1076,9 +1076,13 @@
             if (!e) { for (const k of Object.keys(pendingMsgs)) { if (Number(k) === Number(m.seq)) { e = pendingMsgs[k]; break } } }
             if (!e) return;
             const s = e.el.querySelector('.msg-status');
-            if (s) s.innerHTML = '';
             if (m.data && m.data.msg_id) { e.msg.msg_id = m.data.msg_id; msgById[m.data.msg_id] = e.el }
-            if (m.data && !m.data.delivered) { $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)' }
+            if (m.data && m.data.delivered) {
+                if (s) { s.innerHTML = '<span class="delivered">\u2713 Delivered</span>'; saveMsgStatus(m.data.msg_id, 'delivered') }
+            } else {
+                if (s) s.innerHTML = '';
+                $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)'
+            }
             delete pendingMsgs[m.seq]
         }
         function handleDeliveryUpdate(m) {
@@ -1179,6 +1183,8 @@
             if (!s && isMine && m.msg_id) {
                 const sv = getMsgStatus(m.msg_id);
                 if (sv === 'read') s = '<span class="delivered">\u2713 Read</span>'
+                else if (sv === 'delivered') s = '<span class="delivered">\u2713 Delivered</span>'
+                else if (m.seen) s = '<span class="delivered">\u2713 Read</span>'
             }
             const div = tpl('MsgRow');
             if (isMine) div.classList.add('mine');

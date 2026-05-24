@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id AS msg_id,\n            from_uid,\n            to_uid,\n            content,\n            msg_type,\n            EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS \"send_time!\"\n        FROM im_chat_messages\n        WHERE to_uid = $1 AND seen = FALSE\n        ORDER BY id ASC\n        LIMIT $2\n        ",
+  "query": "\n        SELECT\n            id AS msg_id,\n            from_uid,\n            to_uid,\n            content,\n            msg_type,\n            seen,\n            EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS \"send_time!\"\n        FROM im_chat_messages\n        WHERE ((from_uid = $1 AND to_uid = $2) OR (from_uid = $2 AND to_uid = $1))\n          AND id < COALESCE($3::bigint, 9223372036854775807)\n        ORDER BY id DESC\n        LIMIT $4\n        ",
   "describe": {
     "columns": [
       {
@@ -30,6 +30,11 @@
       },
       {
         "ordinal": 5,
+        "name": "seen",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
         "name": "send_time!",
         "type_info": "Int8"
       }
@@ -37,6 +42,8 @@
     "parameters": {
       "Left": [
         "Uuid",
+        "Uuid",
+        "Int8",
         "Int8"
       ]
     },
@@ -46,8 +53,9 @@
       false,
       false,
       false,
+      false,
       null
     ]
   },
-  "hash": "0f756907d7defd59a15d9bdae24ca19a5e258a7ee396a55292ab70d64a134138"
+  "hash": "6110d918a71481af95c0044b154c3b5ba50b5a3aad49697383918af0c1254617"
 }

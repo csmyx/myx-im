@@ -253,6 +253,8 @@ pub struct ChatHistoryItem {
     pub content: String,
     /// 1 = text
     pub msg_type: i16,
+    /// Whether the recipient has seen this message (DB column `seen`)
+    pub seen: bool,
     /// Unix timestamp in milliseconds (EXTRACT EPOCH from created_at)
     pub send_time: i64,
 }

@@ -135,6 +135,7 @@ pub async fn get_chat_history(
             to_uid,
             content,
             msg_type,
+            seen,
             EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS "send_time!"
         FROM im_chat_messages
         WHERE ((from_uid = $1 AND to_uid = $2) OR (from_uid = $2 AND to_uid = $1))
@@ -171,6 +172,7 @@ pub async fn get_unseen_messages(
             to_uid,
             content,
             msg_type,
+            seen,
             EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS "send_time!"
         FROM im_chat_messages
         WHERE to_uid = $1 AND seen = FALSE

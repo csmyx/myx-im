@@ -272,6 +272,32 @@ async fn handle_biz_msg(
                     } else {
                         tracing::error!("failed to serialize ACK for msg_id={msg_id}");
                     }
+
+                    // Mark unseen messages from recipient→sender as seen
+                    // (replying implies the sender read the recipient's messages)
+                    match dao::get_unseen_ids_from_peer(&state.pg_pool, req.to_uid, uid).await {
+                        Ok(ids) if !ids.is_empty() => {
+                            if let Err(e) = dao::mark_messages_seen(&state.pg_pool, &ids).await {
+                                tracing::error!("mark_messages_seen on reply failed: {e}");
+                            } else {
+                                let update = DeliveryUpdate {
+                                    msg_ids: ids,
+                                    to_uid: uid,
+                                };
+                                if let Ok(json) = serde_json::to_string(&update) {
+                                    state.send_to_user(
+                                        req.to_uid,
+                                        Utf8Bytes::from(format!(
+                                            r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#,
+                                            json
+                                        )),
+                                    );
+                                }
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => tracing::error!("get_unseen_ids_from_peer on reply failed: {e}"),
+                    }
                 }
                 Err(e) => {
                     tracing::error!("save_message failed: {e}");
