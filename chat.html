@@ -1000,6 +1000,7 @@
             <div>
                 <div class="msg-bubble"></div>
                 <div class="msg-time"></div>
+                <div class="msg-status"></div>
             </div>
         </div>
     </template>
@@ -1263,6 +1264,7 @@
                     else if (m.cmd === "group_push") handleGroupPush(m.data);
                     else if (m.cmd === "private_chat_ack") handleAck(m);
                     else if (m.cmd === "delivery_update") handleDeliveryUpdate(m);
+                    else if (m.cmd === "group_delivery_update") handleGroupDeliveryUpdate(m);
                     else if (m.cmd === "typing") handleTyping(m);
                     else if (m.cmd === "kicked") {
                         $("authErr").textContent = "Logged in from another device";
@@ -1361,6 +1363,18 @@
                 if (s) {
                     s.innerHTML = '<span class="delivered">\u2713 Read</span>';
                     saveMsgStatus(mid, "read");
+                }
+            }
+        }
+        function handleGroupDeliveryUpdate(m) {
+            const statuses = m.data && m.data.msg_statuses;
+            if (!statuses) return;
+            for (const s of statuses) {
+                const el = msgById[s.msg_id];
+                if (!el) continue;
+                const st = el.querySelector(".msg-status");
+                if (st) {
+                    st.innerHTML = '<span class="delivered">\u2713 Read ' + s.read + '/' + s.total + '</span>';
                 }
             }
         }
@@ -1687,6 +1701,10 @@
                 bubble.appendChild(document.createTextNode(m.content));
             }
             div.querySelector(".msg-time").textContent = t;
+            if (isMine && m.msg_id) {
+                div.querySelector(".msg-status").innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
+                msgById[m.msg_id] = div;
+            }
             ml.appendChild(div);
             ml.scrollTop = ml.scrollHeight;
         }

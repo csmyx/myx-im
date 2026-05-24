@@ -167,6 +167,26 @@ pub struct GroupChatAck {
     pub online_count: usize,
 }
 
+/// Per-message read status within a group delivery update
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupMsgReadStatus {
+    pub msg_id: i64,
+    /// How many members have read up to (or past) this message
+    pub read: i64,
+    /// Total group members
+    pub total: i64,
+}
+
+/// Notify sender of read counts for their group messages
+/// (pushed when any member opens the group chat, triggering cursor update)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GroupDeliveryUpdate {
+    pub group_id: Uuid,
+    pub msg_statuses: Vec<GroupMsgReadStatus>,
+    /// The member who just triggered the read (for dedup on frontend)
+    pub reader_uid: Uuid,
+}
+
 /// Group chat downstream push (server → all online group members except sender)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupPushMsg {

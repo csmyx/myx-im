@@ -44,16 +44,39 @@ async fn post_json(
         .unwrap()
 }
 
-/// WS helper: connect, return the WebSocket stream.
+/// WS helper: connect, drain unseen sync messages, return the WebSocket stream.
 async fn ws_connect(
     addr: &str,
     token: &str,
 ) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+    use futures_util::StreamExt;
+    use tokio::time::timeout;
+    use tokio_tungstenite::tungstenite::Message;
+
     let ws_url = addr
         .replace("http://", "ws://")
         .replace("https://", "wss://");
     let url = format!("{}/im/ws?token={}", ws_url, token);
-    let (ws, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
+    let (mut ws, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
+
+    // Drain unseen sync messages (private_push, group_push) that arrive on connect
+    let _ = timeout(Duration::from_millis(500), async {
+        loop {
+            match ws.next().await {
+                Some(Ok(Message::Text(t))) => {
+                    let v: serde_json::Value =
+                        serde_json::from_str(&t).unwrap_or_default();
+                    let cmd = v["cmd"].as_str().unwrap_or("");
+                    if cmd != "private_push" && cmd != "group_push" {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+    })
+    .await;
+
     ws
 }
 
@@ -78,39 +101,6 @@ async fn ws_send_recv(
 }
 
 /// Drain unseen sync messages (private_push/group_push) that arrive on connect.
-async fn drain_unseen(
-    ws: &mut tokio_tungstenite::WebSocketStream<
-        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-    >,
-) {
-    use futures_util::SinkExt;
-    use futures_util::StreamExt;
-    use tokio::time::timeout;
-    use tokio_tungstenite::tungstenite::Message;
-
-    // Send a heartbeat to flush any pending writes, then drain unseen pushes
-    ws.send(Message::Text(
-        r#"{"cmd":"heartbeat","seq":0,"data":{}}"#.into(),
-    ))
-    .await
-    .unwrap();
-    let _ = timeout(Duration::from_millis(300), async {
-        loop {
-            match ws.next().await {
-                Some(Ok(Message::Text(t))) => {
-                    let v: serde_json::Value = serde_json::from_str(&t).unwrap_or_default();
-                    let cmd = v["cmd"].as_str().unwrap_or("");
-                    if cmd != "private_push" && cmd != "group_push" {
-                        break;
-                    }
-                }
-                _ => break,
-            }
-        }
-    })
-    .await;
-}
-
 /// Full-flow integration test: register → login → WS chat → reconnect → history.
 ///
 /// Steps:

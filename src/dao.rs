@@ -522,6 +522,37 @@ pub async fn get_unseen_group_counts(
     Ok(rows.into_iter().map(|r| (r.group_id, r.count)).collect())
 }
 
+/// For a batch of message IDs in a group, count how many members have read each.
+/// Returns Vec<(msg_id, read_count, total_members)>.
+pub async fn get_group_read_counts(
+    pool: &PgPool,
+    group_id: Uuid,
+    msg_ids: &[i64],
+) -> anyhow::Result<Vec<(i64, i64, i64)>> {
+    if msg_ids.is_empty() {
+        return Ok(vec![]);
+    }
+    // purpose: count how many members have read up to each message
+    let rows = sqlx::query!(
+        r#"SELECT m.msg_id as "msg_id!", COUNT(cr.user_id) as "read!: i64",
+                  (SELECT COUNT(*) FROM im_group_members WHERE group_id = $1) as "total!: i64"
+           FROM unnest($2::bigint[]) AS m(msg_id)
+           LEFT JOIN im_group_read_cursors cr ON cr.group_id = $1
+                  AND cr.last_read_msg_id >= m.msg_id
+           GROUP BY m.msg_id"#,
+        group_id,
+        msg_ids,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("get_group_read_counts failed: {e}");
+        e
+    })?;
+
+    Ok(rows.into_iter().map(|r| (r.msg_id, r.read, r.total)).collect())
+}
+
 pub async fn persist_group_message(
     pool: &PgPool,
     group_id: Uuid,
