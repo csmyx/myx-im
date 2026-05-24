@@ -14,6 +14,7 @@ pub async fn persist_chat_message(
     client_msg_id: Option<&str>,
 ) -> anyhow::Result<i64> {
     if let Some(cid) = client_msg_id {
+        // purpose: insert private message with client_msg_id for idempotent dedup
         let res = sqlx::query!(
             r#"INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type, client_msg_id)
                VALUES ($1, $2, $3, $4, $5)
@@ -35,7 +36,7 @@ pub async fn persist_chat_message(
         if let Some(row) = res {
             return Ok(row.id);
         }
-        // Conflict — fetch existing
+        // purpose: lookup existing message when deduping client_msg_id conflict
         let existing = sqlx::query!(
             "SELECT id FROM im_chat_messages WHERE client_msg_id = $1",
             cid,
@@ -50,6 +51,7 @@ pub async fn persist_chat_message(
         return Ok(existing.id);
     }
 
+    // purpose: insert private message without client_msg_id
     let res = sqlx::query!(
         r#"INSERT INTO im_chat_messages (from_uid, to_uid, content, msg_type) VALUES ($1, $2, $3, $4) RETURNING id"#,
         from_uid as Uuid,
@@ -70,6 +72,7 @@ pub async fn save_user(
     user_name: String,
     password_hash: String,
 ) -> anyhow::Result<Uuid> {
+    // purpose: create new user with UUID and bcrypt password hash
     let res = sqlx::query!(
         r#"INSERT INTO im_users (id, username, password_hash) VALUES ($1, $2, $3) RETURNING id"#,
         user_id,
@@ -88,6 +91,7 @@ pub async fn save_user(
 }
 
 pub async fn find_user_by_username(pool: &PgPool, user_name: &str) -> anyhow::Result<Option<User>> {
+    // purpose: find user by username for login authentication
     let user = sqlx::query_as!(
         User,
         r#"SELECT id, username, password_hash, created_at FROM im_users WHERE username = $1"#,
@@ -112,7 +116,7 @@ pub async fn get_chat_history(
     before: Option<i64>,
     limit: i64,
 ) -> anyhow::Result<(Vec<ChatHistoryItem>, Vec<i64>)> {
-    // Mark unseen messages from peer as seen and collect their IDs
+    // purpose: mark all unseen messages from peer as seen and return their IDs
     let seen_rows = sqlx::query!(
         r#"UPDATE im_chat_messages
            SET seen = TRUE
@@ -199,6 +203,7 @@ pub async fn mark_seen_from_peer(
     from_uid: Uuid,
     to_uid: Uuid,
 ) -> anyhow::Result<Vec<i64>> {
+    // purpose: atomically mark unseen+return IDs in a single UPDATE RETURNING
     let rows = sqlx::query!(
         r#"UPDATE im_chat_messages
            SET seen = TRUE
@@ -225,7 +230,7 @@ pub async fn add_friend(pool: &PgPool, user_id: Uuid, friend_id: Uuid) -> anyhow
         e
     })?;
 
-    // Insert bidirectional: (A, B) and (B, A)
+    // purpose: insert forward friend pair (A, B)
     sqlx::query!(
         "INSERT INTO im_friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         user_id,
@@ -238,6 +243,7 @@ pub async fn add_friend(pool: &PgPool, user_id: Uuid, friend_id: Uuid) -> anyhow
         e
     })?;
 
+    // purpose: insert reverse friend pair (B, A) for bidirectional relationship
     sqlx::query!(
         "INSERT INTO im_friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         friend_id,
@@ -261,6 +267,7 @@ pub async fn list_friends(
     pool: &PgPool,
     user_id: Uuid,
 ) -> anyhow::Result<Vec<crate::model::FriendInfo>> {
+    // purpose: list all friends for a user, joined with usernames
     let rows = sqlx::query_as!(
         crate::model::FriendInfo,
         r#"SELECT f.friend_id, u.username, f.created_at
@@ -283,7 +290,7 @@ pub async fn list_friends(
 // ===== Group DAO =====
 
 pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow::Result<GroupInfo> {
-    // Check: same owner cannot create duplicate group name
+    // purpose: check if owner already has a group with this name (UNIQUE per owner)
     let existing = sqlx::query!(
         "SELECT id FROM im_groups WHERE owner_uid = $1 AND name = $2",
         owner_uid,
@@ -300,6 +307,7 @@ pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow:
     }
 
     let group_id = Uuid::new_v4();
+    // purpose: create new group with UUID v4
     sqlx::query!(
         "INSERT INTO im_groups (id, name, owner_uid) VALUES ($1, $2, $3)",
         group_id,
@@ -313,6 +321,7 @@ pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow:
         e
     })?;
 
+    // purpose: auto-add group owner as first member
     sqlx::query!(
         "INSERT INTO im_group_members (group_id, user_id) VALUES ($1, $2)",
         group_id,
@@ -325,7 +334,7 @@ pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow:
         e
     })?;
 
-    // Lookup owner's username
+    // purpose: lookup owner's username for the GroupInfo response
     let owner_name = sqlx::query_scalar!("SELECT username FROM im_users WHERE id = $1", owner_uid)
         .fetch_one(pool)
         .await
@@ -342,6 +351,7 @@ pub async fn create_group(pool: &PgPool, name: &str, owner_uid: Uuid) -> anyhow:
 }
 
 pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
+    // purpose: add user to group, idempotent (ON CONFLICT DO NOTHING)
     sqlx::query!(
         "INSERT INTO im_group_members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         group_id,
@@ -357,6 +367,7 @@ pub async fn join_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow:
 }
 
 pub async fn leave_group(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
+    // purpose: remove user from group membership
     sqlx::query!(
         "DELETE FROM im_group_members WHERE group_id = $1 AND user_id = $2",
         group_id,
@@ -401,6 +412,7 @@ pub async fn search_groups(
     limit: i64,
 ) -> anyhow::Result<Vec<GroupInfo>> {
     let pattern = format!("%{}%", keyword);
+    // purpose: search groups by name (ILIKE), includes owner name and member count
     let rows = sqlx::query_as!(
         GroupInfo,
         r#"SELECT g.id AS group_id, g.name, g.owner_uid,
@@ -428,6 +440,7 @@ pub async fn search_groups(
 }
 
 pub async fn list_group_members(pool: &PgPool, group_id: Uuid) -> anyhow::Result<Vec<GroupMember>> {
+    // purpose: list members of a specific group with their usernames
     let rows = sqlx::query_as!(
         GroupMember,
         r#"SELECT u.id AS user_id, u.username
@@ -452,6 +465,7 @@ pub async fn get_group_history(
     before: Option<i64>,
     limit: i64,
 ) -> anyhow::Result<Vec<GroupHistoryItem>> {
+    // purpose: fetch group message history with cursor pagination, joining sender usernames
     let rows = sqlx::query_as!(
         GroupHistoryItem,
         r#"
@@ -492,6 +506,7 @@ pub async fn persist_group_message(
     client_msg_id: Option<&str>,
 ) -> anyhow::Result<i64> {
     if let Some(cid) = client_msg_id {
+        // purpose: insert group message with client_msg_id for idempotent dedup
         let res = sqlx::query!(
             r#"INSERT INTO im_group_messages (group_id, from_uid, content, msg_type, client_msg_id)
                VALUES ($1, $2, $3, $4, $5)
@@ -513,6 +528,7 @@ pub async fn persist_group_message(
         if let Some(row) = res {
             return Ok(row.id);
         }
+        // purpose: lookup existing group message when deduping client_msg_id conflict
         let existing = sqlx::query!(
             "SELECT id FROM im_group_messages WHERE client_msg_id = $1",
             cid,
@@ -526,6 +542,7 @@ pub async fn persist_group_message(
         return Ok(existing.id);
     }
 
+    // purpose: insert group message without client_msg_id
     let res = sqlx::query!(
         r#"INSERT INTO im_group_messages (group_id, from_uid, content, msg_type)
            VALUES ($1, $2, $3, $4) RETURNING id"#,
@@ -545,6 +562,7 @@ pub async fn persist_group_message(
 }
 
 pub async fn is_group_member(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> anyhow::Result<bool> {
+    // purpose: check if user is a member of a group (for access control)
     let row = sqlx::query!(
         "SELECT 1 AS _exists FROM im_group_members WHERE group_id = $1 AND user_id = $2",
         group_id,
@@ -560,6 +578,7 @@ pub async fn is_group_member(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> an
 }
 
 pub async fn get_group_member_uids(pool: &PgPool, group_id: Uuid) -> anyhow::Result<Vec<Uuid>> {
+    // purpose: get all member UIDs of a group for push delivery
     let rows = sqlx::query!(
         "SELECT user_id FROM im_group_members WHERE group_id = $1",
         group_id,
@@ -578,6 +597,7 @@ pub async fn upsert_read_cursor(
     peer_uid: Uuid,
     last_read_msg_id: i64,
 ) -> anyhow::Result<()> {
+    // purpose: upsert read cursor (user has read up to this message from this peer)
     sqlx::query!(
         r#"INSERT INTO im_read_cursors (user_id, peer_uid, last_read_msg_id)
            VALUES ($1, $2, $3)
@@ -596,6 +616,7 @@ pub async fn upsert_read_cursor(
 }
 
 pub async fn get_conversations(pool: &PgPool, uid: Uuid) -> anyhow::Result<Vec<ConversationItem>> {
+    // purpose: get latest message per conversation partner (DISTINCT ON peer)
     let rows = sqlx::query_as!(
         ConversationItem,
         r#"
@@ -633,6 +654,7 @@ pub async fn search_users(
     limit: i64,
 ) -> anyhow::Result<Vec<UserSearchItem>> {
     let pattern = format!("%{}%", keyword);
+    // purpose: search users by username (ILIKE), excluding self
     let rows = sqlx::query_as!(
         UserSearchItem,
         "SELECT id, username FROM im_users WHERE username ILIKE $1 AND id != $2 LIMIT $3",
