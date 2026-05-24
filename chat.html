@@ -1111,7 +1111,9 @@
                 headers: { "Content-Type": "application/json" },
                 ...opts,
             });
-            return r.json();
+            try { return await r.json() } catch (_) {
+                return { code: r.status, msg: "Server error" }
+            }
         }
         function setErr(m) {
             $("authErr").textContent = m || "";
@@ -1829,6 +1831,10 @@
             const g = $("joinGroupId").value.trim();
             if (!g) {
                 $("joinGroupErr").textContent = "Enter a group ID";
+                return;
+            }
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(g)) {
+                $("joinGroupErr").textContent = "Invalid UUID format";
                 return;
             }
             const d = await api("/api/group/join", {
