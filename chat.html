@@ -1145,7 +1145,6 @@
             activePeer = uid; activeGroup = null;
             if (unreadCounts[uid]) {
                 delete unreadCounts[uid];
-                if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: 'mark_delivered', seq: 0, data: { peer_uid: uid } }))
             }
             if (!peers[uid] || peers[uid].username === '?') peers[uid] = { username: name }; $('chAvatar').textContent = ((peers[uid] && peers[uid].username) || name || '?')[0].toUpperCase(); $('chName').textContent = (peers[uid] && peers[uid].username) || name; $('chStatus').textContent = ''; $('chStatus').style.color = ''; messages = [];
             const lm = $('loadMore'); $('msgList').replaceChildren(lm); lm.style.display = 'block'; $('loadMore').textContent = 'Load earlier messages'; $('loadMore').style.cursor = 'pointer'; $('msgInput').value = ''; $('typingHint').style.display = 'none'; clearTimeout(typingTimeout); goTo('chat'); loadHistory()

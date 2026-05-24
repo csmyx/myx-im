@@ -20,9 +20,9 @@ use crate::jwt::verify_token;
 use crate::model::{
     ChatHistoryItem, ConversationItem, CreateGroupReq, DeleteRequest, DeliveryUpdate,
     GroupActionReq, GroupChatAck, GroupChatReq, GroupHistoryItem, GroupHistoryQuery, GroupInfo,
-    GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, MarkDeliveredReq,
-    PrivateChatAck, PrivateChatReq, PrivatePushMsg, ReadReceipt, RegisterRequest, Res, SearchQuery,
-    TokenQuery, UserSearchItem, WsMessage,
+    GroupMember, GroupPushMsg, GroupQuery, HistoryQuery, LoginRequest, PrivateChatAck,
+    PrivateChatReq, PrivatePushMsg, RegisterRequest, Res, SearchQuery, TokenQuery, UserSearchItem,
+    WsMessage,
 };
 use crate::service;
 use crate::state::AppState;
@@ -198,52 +198,6 @@ async fn handle_biz_msg(
                 state.send_to_user(req.to_uid, Utf8Bytes::from(payload));
             }
         }
-        "mark_delivered" => {
-            let req: MarkDeliveredReq = match serde_json::from_value(ws_msg.data) {
-                Ok(r) => r,
-                Err(e) => {
-                    tracing::warn!("failed to parse mark_delivered request: {e}");
-                    return;
-                }
-            };
-            match dao::get_unseen_ids_from_peer(&state.pg_pool, req.peer_uid, uid).await {
-                Ok(ids) if !ids.is_empty() => {
-                    let max_id = *ids.last().unwrap();
-                    if let Err(e) = dao::mark_messages_seen(&state.pg_pool, &ids).await {
-                        tracing::error!("mark_messages_seen failed: {e}");
-                    } else {
-                        // Notify sender: messages delivered
-                        let update = DeliveryUpdate {
-                            msg_ids: ids.clone(),
-                            to_uid: uid,
-                        };
-                        if let Ok(json) = serde_json::to_string(&update) {
-                            let payload =
-                                format!(r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#, json);
-                            state.send_to_user(req.peer_uid, Utf8Bytes::from(payload));
-                        }
-                        // Update read cursor & send read receipt
-                        if let Err(e) =
-                            dao::upsert_read_cursor(&state.pg_pool, uid, req.peer_uid, max_id).await
-                        {
-                            tracing::error!("upsert_read_cursor failed: {e}");
-                        } else {
-                            let receipt = ReadReceipt {
-                                peer_uid: uid,
-                                last_read_msg_id: max_id,
-                            };
-                            if let Ok(json) = serde_json::to_string(&receipt) {
-                                let payload =
-                                    format!(r#"{{"cmd":"read_receipt","seq":0,"data":{}}}"#, json);
-                                state.send_to_user(req.peer_uid, Utf8Bytes::from(payload));
-                            }
-                        }
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => tracing::error!("get_unseen_ids_from_peer failed: {e}"),
-            }
-        }
         "private_chat" => {
             let req: PrivateChatReq = match serde_json::from_value(ws_msg.data) {
                 Ok(r) => r,
@@ -262,7 +216,7 @@ async fn handle_biz_msg(
                 .unwrap_or_default()
                 .as_millis() as u64;
 
-            match dao::save_message(
+            match dao::persist_chat_message(
                 &state.pg_pool,
                 uid,
                 req.to_uid,
@@ -358,7 +312,7 @@ async fn handle_biz_msg(
                 .unwrap_or_default()
                 .as_millis() as u64;
 
-            match dao::save_group_message(
+            match dao::persist_group_message(
                 &state.pg_pool,
                 req.group_id,
                 uid,
@@ -452,7 +406,26 @@ async fn message_history_handler(
     )
     .await
     {
-        Ok(items) => (StatusCode::OK, Json(Res::success(items, "ok"))).into_response(),
+        Ok((items, seen_ids)) => {
+            // Notify the peer (message sender) that their messages were seen.
+            // seen_ids are the messages from peer→caller that were just marked seen=TRUE.
+            if !seen_ids.is_empty() {
+                let update = DeliveryUpdate {
+                    msg_ids: seen_ids,
+                    to_uid: claims.user_id,
+                };
+                if let Ok(json) = serde_json::to_string(&update) {
+                    state.send_to_user(
+                        query.peer_uid,
+                        axum::extract::ws::Utf8Bytes::from(format!(
+                            r#"{{"cmd":"delivery_update","seq":0,"data":{}}}"#,
+                            json
+                        )),
+                    );
+                }
+            }
+            (StatusCode::OK, Json(Res::success(items, "ok"))).into_response()
+        }
         Err(e) => {
             tracing::error!("get_chat_history failed: {e}");
             (

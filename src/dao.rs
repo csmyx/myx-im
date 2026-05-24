@@ -5,7 +5,7 @@ use crate::model::{
 
 use sqlx::PgPool;
 use uuid::Uuid;
-pub async fn save_message(
+pub async fn persist_chat_message(
     pool: &PgPool,
     from_uid: Uuid,
     to_uid: Uuid,
@@ -103,13 +103,29 @@ pub async fn find_user_by_username(pool: &PgPool, user_name: &str) -> anyhow::Re
     Ok(user)
 }
 
+/// Fetch chat history between two users AND mark unseen messages from uid_b→uid_a as seen.
+/// Returns (history_items, newly_seen_msg_ids).
 pub async fn get_chat_history(
     pool: &PgPool,
     uid_a: Uuid,
     uid_b: Uuid,
     before: Option<i64>,
     limit: i64,
-) -> anyhow::Result<Vec<ChatHistoryItem>> {
+) -> anyhow::Result<(Vec<ChatHistoryItem>, Vec<i64>)> {
+    // Mark unseen messages from peer as seen and collect their IDs
+    let seen_rows = sqlx::query!(
+        r#"UPDATE im_chat_messages
+           SET seen = TRUE
+           WHERE from_uid = $1 AND to_uid = $2 AND seen = FALSE
+           RETURNING id"#,
+        uid_b,
+        uid_a,
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let seen_ids: Vec<i64> = seen_rows.into_iter().map(|r| r.id).collect();
+
     let rows = sqlx::query_as!(
         ChatHistoryItem,
         r#"
@@ -138,7 +154,7 @@ pub async fn get_chat_history(
         e
     })?;
 
-    Ok(rows)
+    Ok((rows, seen_ids))
 }
 
 pub async fn get_unseen_messages(
@@ -354,7 +370,7 @@ pub async fn get_group_history(
     Ok(rows)
 }
 
-pub async fn save_group_message(
+pub async fn persist_group_message(
     pool: &PgPool,
     group_id: Uuid,
     from_uid: Uuid,

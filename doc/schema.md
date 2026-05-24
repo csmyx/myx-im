@@ -17,7 +17,7 @@ erDiagram
         uuid to_uid FK
         text content
         smallint msg_type
-        boolean delivered
+        boolean seen
         text client_msg_id UK
         timestamptz created_at
     }
@@ -64,7 +64,7 @@ erDiagram
 
 ---
 
-## Private Chat — Full Flow
+## Private Chat — Full Flow (v1 — `mark_delivered` WS command)
 
 ```mermaid
 sequenceDiagram
@@ -130,6 +130,78 @@ sequenceDiagram
 
 ---
 
+## Private Chat — Full Flow (v2 — seen-marking in history endpoint)
+
+> **Change from v1:** The `mark_delivered` WS command is removed. Instead, when the
+> receiver fetches chat history via `GET /api/message/history`, the backend
+> automatically marks unseen messages from the peer as `seen=TRUE` and pushes a
+> `delivery_update` to the sender. Column renamed `delivered` → `seen`.
+
+```mermaid
+sequenceDiagram
+    actor Alice
+    actor Bob
+    participant Server
+    participant DB
+
+    Note over Alice, Server: === Registration ===
+    Alice->>Server: POST /api/user/register {username, password}
+    Server->>DB: INSERT im_users (bcrypt hash)
+    Server-->>Alice: 200 {token}
+
+    Bob->>Server: POST /api/user/register
+    Server->>DB: INSERT im_users
+    Server-->>Bob: 200 {token}
+
+    Note over Alice, Server: === Login & WS Connect ===
+    Alice->>Server: GET /im/ws?token=<jwt>
+    Server->>Server: verify JWT
+    Server->>DB: SELECT unseen messages (seen=FALSE)
+    Server-->>Alice: Push offline messages
+    Server-->>Alice: WS connected (online_users map)
+
+    Bob->>Server: GET /im/ws?token=<jwt>
+    Server-->>Bob: WS connected
+
+    Note over Alice, Bob: === Alice sends message to Bob (Bob online) ===
+    Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"hello"}}
+    Server->>DB: INSERT im_chat_messages (seen=FALSE)
+    DB-->>Server: msg_id=42
+    Server->>Bob: Push PrivatePushMsg {from_uid:Alice, content:"hello", send_time}
+    Server-->>Alice: ACK {cmd:"private_chat_ack", data:{msg_id:42, delivered:true}}
+    Bob->>Bob: Show "hello" + unread badge if not in chat
+
+    Note over Alice, Bob: === Bob opens Alice's chat (loads history) ===
+    Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
+    Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
+    Server->>DB: SELECT chat history (ORDER BY id DESC LIMIT 50)
+    Server-->>Bob: 200 {history items}
+    Server->>Alice: Push delivery_update {msg_ids:[42], to_uid:Bob}
+    Alice->>Alice: ✓ Read
+
+    Note over Alice, Bob: === Alice sends to offline Bob ===
+    Alice->>Server: WS {cmd:"private_chat", data:{to_uid:Bob, content:"hi"}}
+    Server->>DB: INSERT (seen=FALSE)
+    DB-->>Server: msg_id=43
+    Server-->>Alice: ACK {msg_id:43, delivered:false}
+    Alice->>Alice: ◷ Sent (offline)
+
+    Note over Bob: Bob reconnects later
+    Bob->>Server: GET /im/ws?token=<jwt>
+    Server->>DB: SELECT unseen WHERE to_uid=Bob (seen=FALSE)
+    Server-->>Bob: Push [msg_id=43, from_uid=Alice, content:"hi"]
+    Bob->>Bob: Show "hi" + unread badge 🔴1
+
+    Note over Bob: Bob opens Alice's chat
+    Bob->>Server: GET /api/message/history?peer_uid=Alice&token=...
+    Server->>DB: UPDATE seen=TRUE WHERE to_uid=Bob AND from_uid=Alice
+    Server-->>Bob: 200 {history items}
+    Server->>Alice: Push delivery_update {msg_ids:[43], to_uid:Bob}
+    Alice->>Alice: ◷ Sent → ✓ Read
+```
+
+---
+
 ## Group Chat — Send & Push
 
 ```mermaid
@@ -188,7 +260,7 @@ graph TB
 | Decision                                    | Rationale                                       |
 | ------------------------------------------- | ----------------------------------------------- |
 | Private & group messages in separate tables | Cleaner queries, different delivery semantics   |
-| `delivered` flag on messages                | Offline sync without extra table                |
+| `seen` flag on messages                     | Offline sync without extra table                |
 | `client_msg_id` UNIQUE                      | Dedup at DB level (ON CONFLICT DO NOTHING)      |
 | Composite PK on `im_read_cursors`           | One cursor per (user, peer) pair                |
 | `ON DELETE CASCADE` on group children       | Auto-cleanup when group deleted                 |
@@ -355,7 +427,7 @@ graph TB
     subgraph "handle_im_websocket (main task)"
         MAIN["while let msg = receiver.next()<br/>→ handle_biz_msg()<br/>→ break on Close"]
     end
-    subgraph "Undelivered Sync (spawned)"
+    subgraph "Unseen Sync (spawned)"
         SYNC["tokio::spawn<br/>reads undelivered from DB<br/>sends via tx"]
     end
     subgraph "Forwarding (spawned)"

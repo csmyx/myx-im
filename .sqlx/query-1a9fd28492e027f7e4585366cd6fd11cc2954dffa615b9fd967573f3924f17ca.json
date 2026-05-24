@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE im_chat_messages\n           SET seen = TRUE\n           WHERE from_uid = $1 AND to_uid = $2 AND seen = FALSE\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1a9fd28492e027f7e4585366cd6fd11cc2954dffa615b9fd967573f3924f17ca"
+}
