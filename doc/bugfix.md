@@ -16,6 +16,19 @@
 - `src/dao.rs` — lowered `save_user` log from `ERROR` to `WARN` (duplicate key is expected, handled by service layer as 409)
 - `tests/integration_test.rs` — regression test `test_message_undelivered_when_peer_disconnects`
 
+### 2. Account deletion didn't kick active WebSocket sessions (2026-05-24)
+
+**Symptom**: After deleting an account, other devices logged into the same account stayed connected and showed the chat UI.
+
+**Root cause**: `service::delete_user` returned `(StatusCode, Json<...>)` with no way for the route handler to know the deleted user's ID. The route handler couldn't send a kick message to active sessions.
+
+**Fix**:
+- `service::delete_user` now returns `Result<Uuid, ...>` — exposes the deleted user's ID
+- Route handler sends `{"cmd":"kicked","data":{"msg":"account deleted"}}` via `state.send_to_user()` after successful deletion
+- Integration test `test_delete_account_kicks_ws` verifies the kicked message arrives
+
+**Files changed**: `src/service.rs`, `src/router.rs`, `tests/integration_test.rs`
+
 ---
 
 ## Frontend
@@ -77,3 +90,20 @@
 **Root cause**: `100vh` overrode `100dvh` (iOS dynamic viewport). Missing `-webkit-overflow-scrolling: touch`.
 
 **Fix**: Swapped `vh`/`dvh` order. Added `-webkit-overflow-scrolling: touch`. Added `min-height: 0` to `#app`.
+
+---
+
+### 8. Peer avatar/name showing UUID instead of username (2026-05-24)
+
+**Symptom**: Sometimes the chat header avatar and message bubbles showed raw UUID fragments instead of the peer's username.
+
+**Root cause**: `PrivatePushMsg` had no `from_name` field. When a push arrived before `loadConversations`, `handlePush` created a `peers` entry with `username: '?'` placeholder. Then `loadConversations` skipped the update because the entry already existed. The message bubble fallback `m.from_uid.substring(0, 8)` displayed raw UUID.
+
+**Fix**:
+- Added `from_name: String` to `PrivatePushMsg` model
+- Backend looks up sender username from DB when constructing push (private_chat + sync undelivered)
+- Frontend `handlePush` uses `d.from_name` directly instead of placeholder
+- `loadConversations` now always overwrites `peers` entries (not just on first creation)
+- `openChat` overwrites `peers` entry if username is still `'?'`
+
+**Files changed**: `src/model.rs`, `src/router.rs`, `chat.html`

@@ -95,9 +95,25 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
         tokio::spawn(async move {
             match dao::get_undelivered_messages(&pool, user_id, 200).await {
                 Ok(msgs) => {
+                    // Collect sender UIDs and lookup usernames
+                    let sender_uids: Vec<Uuid> = msgs.iter().map(|m| m.from_uid).collect();
+                    let names: std::collections::HashMap<Uuid, String> = if !sender_uids.is_empty()
+                    {
+                        sqlx::query!(
+                            "SELECT id, username FROM im_users WHERE id = ANY($1)",
+                            &sender_uids,
+                        )
+                        .fetch_all(&pool)
+                        .await
+                        .map(|rows| rows.into_iter().map(|r| (r.id, r.username)).collect())
+                        .unwrap_or_default()
+                    } else {
+                        std::collections::HashMap::new()
+                    };
                     for msg in &msgs {
                         let push = PrivatePushMsg {
                             from_uid: msg.from_uid,
+                            from_name: names.get(&msg.from_uid).cloned().unwrap_or_default(),
                             to_uid: msg.to_uid,
                             content: msg.content.clone(),
                             msg_type: msg.msg_type as u8,
@@ -257,9 +273,19 @@ async fn handle_biz_msg(
             .await
             {
                 Ok(msg_id) => {
+                    // Look up sender username for the push
+                    let from_name: String = sqlx::query_scalar!(
+                        "SELECT username FROM im_users WHERE id = $1",
+                        uid as Uuid,
+                    )
+                    .fetch_one(&state.pg_pool)
+                    .await
+                    .unwrap_or_default();
+
                     // Push to recipient first to know delivery status
                     let push = PrivatePushMsg {
                         from_uid: uid,
+                        from_name,
                         to_uid: req.to_uid,
                         content: req.content.clone(),
                         msg_type: req.msg_type,

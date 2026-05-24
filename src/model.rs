@@ -87,6 +87,7 @@ pub struct PrivateChatReq {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PrivatePushMsg {
     pub from_uid: Uuid,
+    pub from_name: String,
     pub to_uid: Uuid,
     pub content: String,
     pub msg_type: u8,
