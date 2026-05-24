@@ -141,7 +141,7 @@ pub async fn get_chat_history(
     Ok(rows)
 }
 
-pub async fn get_undelivered_messages(
+pub async fn get_unseen_messages(
     pool: &PgPool,
     uid: Uuid,
     limit: i64,
@@ -157,7 +157,7 @@ pub async fn get_undelivered_messages(
             msg_type,
             EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS "send_time!"
         FROM im_chat_messages
-        WHERE to_uid = $1 AND delivered = FALSE
+        WHERE to_uid = $1 AND seen = FALSE
         ORDER BY id ASC
         LIMIT $2
         "#,
@@ -167,42 +167,42 @@ pub async fn get_undelivered_messages(
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("get_undelivered_messages failed: {e}");
+        tracing::error!("get_unseen_messages failed: {e}");
         e
     })?;
 
     Ok(rows)
 }
 
-pub async fn mark_messages_delivered(pool: &PgPool, msg_ids: &[i64]) -> anyhow::Result<()> {
+pub async fn mark_messages_seen(pool: &PgPool, msg_ids: &[i64]) -> anyhow::Result<()> {
     if msg_ids.is_empty() {
         return Ok(());
     }
-    sqlx::query("UPDATE im_chat_messages SET delivered = TRUE WHERE id = ANY($1)")
+    sqlx::query("UPDATE im_chat_messages SET seen = TRUE WHERE id = ANY($1)")
         .bind(msg_ids)
         .execute(pool)
         .await
         .map_err(|e| {
-            tracing::error!("mark_messages_delivered failed: {e}");
+            tracing::error!("mark_messages_seen failed: {e}");
             e
         })?;
     Ok(())
 }
 
-pub async fn get_undelivered_ids_from_peer(
+pub async fn get_unseen_ids_from_peer(
     pool: &PgPool,
     from_uid: Uuid,
     to_uid: Uuid,
 ) -> anyhow::Result<Vec<i64>> {
     let rows = sqlx::query!(
-        "SELECT id FROM im_chat_messages WHERE from_uid = $1 AND to_uid = $2 AND delivered = FALSE ORDER BY id",
+        "SELECT id FROM im_chat_messages WHERE from_uid = $1 AND to_uid = $2 AND seen = FALSE ORDER BY id",
         from_uid,
         to_uid,
     )
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("get_undelivered_ids_from_peer failed: {e}");
+        tracing::error!("get_unseen_ids_from_peer failed: {e}");
         e
     })?;
 

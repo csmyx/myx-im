@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM im_read_cursors WHERE user_id = $1 OR peer_uid = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "20221597579216b3bd4d7e5af3fb2c1dbc33839dc15808fb04f07e0bb2707f2a"
+}

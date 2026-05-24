@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id AS msg_id,\n            from_uid,\n            to_uid,\n            content,\n            msg_type,\n            EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS \"send_time!\"\n        FROM im_chat_messages\n        WHERE to_uid = $1 AND delivered = FALSE\n        ORDER BY id ASC\n        LIMIT $2\n        ",
+  "query": "\n        SELECT\n            id AS msg_id,\n            from_uid,\n            to_uid,\n            content,\n            msg_type,\n            EXTRACT(EPOCH FROM created_at)::bigint * 1000 AS \"send_time!\"\n        FROM im_chat_messages\n        WHERE to_uid = $1 AND seen = FALSE\n        ORDER BY id ASC\n        LIMIT $2\n        ",
   "describe": {
     "columns": [
       {
@@ -49,5 +49,5 @@
       null
     ]
   },
-  "hash": "975549e6fb02bd939b4c44d897872cc297a172c8edcfb20e370985321f4148ae"
+  "hash": "0f756907d7defd59a15d9bdae24ca19a5e258a7ee396a55292ab70d64a134138"
 }

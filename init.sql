@@ -11,7 +11,7 @@ CREATE TABLE im_chat_messages (
     to_uid UUID NOT NULL,
     content TEXT NOT NULL,
     msg_type SMALLINT NOT NULL,
-    delivered BOOLEAN NOT NULL DEFAULT FALSE,
+    seen BOOLEAN NOT NULL DEFAULT FALSE,  -- true = recipient opened the chat and saw this message
     client_msg_id TEXT UNIQUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

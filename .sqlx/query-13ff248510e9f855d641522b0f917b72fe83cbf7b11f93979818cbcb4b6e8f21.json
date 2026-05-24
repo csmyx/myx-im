@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM im_chat_messages WHERE from_uid = $1 OR to_uid = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "13ff248510e9f855d641522b0f917b72fe83cbf7b11f93979818cbcb4b6e8f21"
+}

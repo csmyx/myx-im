@@ -93,7 +93,7 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
         let tx = tx.clone();
         let pool = state.pg_pool.clone();
         tokio::spawn(async move {
-            match dao::get_undelivered_messages(&pool, user_id, 200).await {
+            match dao::get_unseen_messages(&pool, user_id, 200).await {
                 Ok(msgs) => {
                     // Collect sender UIDs and lookup usernames
                     let sender_uids: Vec<Uuid> = msgs.iter().map(|m| m.from_uid).collect();
@@ -127,7 +127,7 @@ async fn handle_im_websocket(socket: WebSocket, user_id: Uuid, state: Arc<AppSta
                         }
                     }
                 }
-                Err(e) => tracing::error!("get_undelivered_messages failed: {e}"),
+                Err(e) => tracing::error!("get_unseen_messages failed: {e}"),
             }
         });
     }
@@ -206,11 +206,11 @@ async fn handle_biz_msg(
                     return;
                 }
             };
-            match dao::get_undelivered_ids_from_peer(&state.pg_pool, req.peer_uid, uid).await {
+            match dao::get_unseen_ids_from_peer(&state.pg_pool, req.peer_uid, uid).await {
                 Ok(ids) if !ids.is_empty() => {
                     let max_id = *ids.last().unwrap();
-                    if let Err(e) = dao::mark_messages_delivered(&state.pg_pool, &ids).await {
-                        tracing::error!("mark_messages_delivered failed: {e}");
+                    if let Err(e) = dao::mark_messages_seen(&state.pg_pool, &ids).await {
+                        tracing::error!("mark_messages_seen failed: {e}");
                     } else {
                         // Notify sender: messages delivered
                         let update = DeliveryUpdate {
@@ -241,7 +241,7 @@ async fn handle_biz_msg(
                     }
                 }
                 Ok(_) => {}
-                Err(e) => tracing::error!("get_undelivered_ids_from_peer failed: {e}"),
+                Err(e) => tracing::error!("get_unseen_ids_from_peer failed: {e}"),
             }
         }
         "private_chat" => {

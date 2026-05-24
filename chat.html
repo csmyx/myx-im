@@ -881,6 +881,62 @@
         </div>
     </div>
 
+    <!-- ====== Templates ====== -->
+    <template id="tplConvItem">
+        <div class="list-item">
+            <div class="li-avatar"></div>
+            <div class="li-info">
+                <div class="li-name"></div>
+                <div class="li-last"></div>
+            </div>
+            <div class="li-meta">
+                <div class="li-time"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tplGroupItem">
+        <div class="list-item">
+            <div class="li-avatar">👥</div>
+            <div class="li-info">
+                <div class="li-name"></div>
+                <div class="li-last"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tplSearchItem">
+        <div class="item">
+            <div class="sr-avatar"></div>
+            <div></div>
+        </div>
+    </template>
+
+    <template id="tplMsgRow">
+        <div class="msg-row">
+            <div class="m-avatar"></div>
+            <div>
+                <div class="msg-bubble"></div>
+                <div class="msg-time"></div>
+                <div class="msg-status"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tplGroupMsgRow">
+        <div class="msg-row">
+            <div class="m-avatar"></div>
+            <div>
+                <div class="msg-bubble"></div>
+                <div class="msg-time"></div>
+            </div>
+        </div>
+    </template>
+
+    <template id="tplEmptyState">
+        <div class="empty-state"></div>
+    </template>
+
     <script>
 
         let me = null, ws = null, peers = {}, messages = [], groupMessages = [];
@@ -953,7 +1009,8 @@
             try {
                 const d = await api('/api/user/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });
                 if (d.code !== 200) return setErr(d.msg);
-                try { me = { uid: JSON.parse(atob(d.data.split('.')[1])).user_id, username: u, token: d.data } } catch (_) { return setErr('Bad token') } connectWS()
+                try { me = { uid: JSON.parse(atob(d.data.split('.')[1])).user_id, username: u, token: d.data } }
+                catch (_) { return setErr('Bad token') } connectWS()
             } catch (_) { setErr('Cannot reach server') }
         }
 
@@ -1009,8 +1066,8 @@
             const p = d.from_uid === me.uid ? d.to_uid : d.from_uid;
             if (!peers[p] || peers[p].username === '?') peers[p] = { username: d.from_uid === me.uid ? 'You' : (d.from_name || '?') };
             if (activePeer === p && currentPage === 'chat') {
-                appendMsg({ msg_id: Date.now(), from_uid: d.from_uid, to_uid: d.to_uid, content: d.content, msg_type: d.msg_type, send_time: d.send_time }, null, $('msgList')); $('chStatus').textContent = 'online'; $('chStatus').style.color = 'var(--accent)';
-                for (const el of $('msgList').querySelectorAll('.msg-row.mine .msg-status')) { if (!el.textContent) el.innerHTML = '<span class=\"delivered\">\u2713 Read</span>' }
+                appendMsg({ msg_id: Date.now(), from_uid: d.from_uid, to_uid: d.to_uid, content: d.content, msg_type: d.msg_type, send_time: d.send_time }, null, $('msgList'));
+                $('chStatus').textContent = 'online'; $('chStatus').style.color = 'var(--accent)'
             } else { unreadCounts[p] = (unreadCounts[p] || 0) + 1; renderConvList() } loadConversations()
         }
         function handleGroupPush(d) { if (activeGroup === d.group_id && currentPage === 'groupChat' && d.from_uid !== me.uid) appendGroupMsg({ msg_id: Date.now(), group_id: d.group_id, from_uid: d.from_uid, from_name: d.from_name, content: d.content, msg_type: d.msg_type, send_time: d.send_time }, $('gmsgList')) }
@@ -1020,12 +1077,10 @@
             if (!e) { for (const k of Object.keys(pendingMsgs)) { if (Number(k) === Number(m.seq)) { e = pendingMsgs[k]; break } } }
             if (!e) return;
             const s = e.el.querySelector('.msg-status');
-            if (s) {
-                s.innerHTML = '<span class="delivered">\u2713 Read</span>';
-                if (m.data && m.data.msg_id) saveMsgStatus(m.data.msg_id, 'read')
-            }
+            if (s) s.innerHTML = '';
             if (m.data && m.data.msg_id) { e.msg.msg_id = m.data.msg_id; msgById[m.data.msg_id] = e.el }
-            if (m.data && !m.data.delivered) { $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)' } delete pendingMsgs[m.seq]
+            if (m.data && !m.data.delivered) { $('chStatus').textContent = 'offline'; $('chStatus').style.color = 'var(--text2)' }
+            delete pendingMsgs[m.seq]
         }
         function handleDeliveryUpdate(m) {
             const ids = m.data && m.data.msg_ids;
@@ -1057,11 +1112,33 @@
             const d = document.createElement('div'); d.textContent = s || '';
             return d.innerHTML
         }
+        // Clone a <template> and return its firstElementChild
+        function tpl(id) { return $('tpl' + id).content.firstElementChild.cloneNode(true) }
+
         function renderConvList() {
-            const el = $('convList'); el.innerHTML = convCache.length === 0 ? '<div class="empty-state">No conversations yet.<br>Search for users to start chatting.</div>' : convCache.map(c => {
-                const t = new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                return '<div class="list-item" onclick="openChat(\'' + c.peer_uid + '\',\'' + escHtml(c.peer_name) + '\')"><div class="li-avatar">' + (c.peer_name || '?')[0].toUpperCase() + '</div><div class="li-info"><div class="li-name">' + escHtml(c.peer_name) + (unreadCounts[c.peer_uid] ? ' <span class="badge">' + unreadCounts[c.peer_uid] + '</span>' : '') + '</div><div class="li-last">' + escHtml(c.last_msg) + '</div></div><div class="li-meta"><div class="li-time">' + t + '</div></div></div>'
-            }).join('')
+            const el = $('convList'); el.replaceChildren();
+            if (convCache.length === 0) {
+                const d = tpl('EmptyState');
+                d.innerHTML = 'No conversations yet.<br>Search for users to start chatting.';
+                el.appendChild(d);
+                return;
+            }
+            for (const c of convCache) {
+                const item = tpl('ConvItem');
+                item.querySelector('.li-avatar').textContent = (c.peer_name || '?')[0].toUpperCase();
+                const nameEl = item.querySelector('.li-name');
+                nameEl.textContent = c.peer_name;
+                if (unreadCounts[c.peer_uid]) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge';
+                    badge.textContent = unreadCounts[c.peer_uid];
+                    nameEl.appendChild(badge);
+                }
+                item.querySelector('.li-last').textContent = c.last_msg;
+                item.querySelector('.li-time').textContent = new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                item.onclick = () => openChat(c.peer_uid, c.peer_name);
+                el.appendChild(item);
+            }
         }
 
         function openChat(uid, name) {
@@ -1106,7 +1183,15 @@
                 const sv = getMsgStatus(m.msg_id);
                 if (sv === 'read') s = '<span class="delivered">\u2713 Read</span>'
             }
-            const div = document.createElement('div'); div.className = 'msg-row' + (isMine ? ' mine' : ''); div.innerHTML = '<div class="m-avatar">' + nm[0].toUpperCase() + '</div><div><div class="msg-bubble">' + escHtml(m.content) + '</div><div class="msg-time">' + t + '</div><div class="msg-status">' + (s || '') + '</div></div>'; ml.appendChild(div); ml.scrollTop = ml.scrollHeight;
+            const div = tpl('MsgRow');
+            if (isMine) div.classList.add('mine');
+            div.querySelector('.m-avatar').textContent = nm[0].toUpperCase();
+            div.querySelector('.msg-bubble').textContent = m.content;
+            div.querySelector('.msg-time').textContent = t;
+            const status = div.querySelector('.msg-status');
+            if (s) status.innerHTML = s;
+            ml.appendChild(div);
+            ml.scrollTop = ml.scrollHeight;
             if (m.msg_id && isMine) msgById[m.msg_id] = div;
             return div
         }
@@ -1164,7 +1249,22 @@
             const isMine = m.from_uid === me.uid;
             const nm = m.from_name || '?';
             const t = new Date(Number(m.send_time)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const div = document.createElement('div'); div.className = 'msg-row' + (isMine ? ' mine' : ''); div.innerHTML = '<div class="m-avatar">' + nm[0].toUpperCase() + '</div><div><div class="msg-bubble">' + (isMine ? '' : '<b>' + escHtml(nm) + '</b><br>') + escHtml(m.content) + '</div><div class="msg-time">' + t + '</div></div>'; ml.appendChild(div); ml.scrollTop = ml.scrollHeight
+            const div = tpl('GroupMsgRow');
+            if (isMine) div.classList.add('mine');
+            div.querySelector('.m-avatar').textContent = nm[0].toUpperCase();
+            const bubble = div.querySelector('.msg-bubble');
+            if (isMine) {
+                bubble.textContent = m.content;
+            } else {
+                const b = document.createElement('b');
+                b.textContent = nm;
+                bubble.appendChild(b);
+                bubble.appendChild(document.createElement('br'));
+                bubble.appendChild(document.createTextNode(m.content));
+            }
+            div.querySelector('.msg-time').textContent = t;
+            ml.appendChild(div);
+            ml.scrollTop = ml.scrollHeight
         }
         function sendGroupMessage() {
             if (!ws || ws.readyState !== 1 || !activeGroup) return;
@@ -1184,7 +1284,22 @@
             const d = await api('/api/group/list?token=' + encodeURIComponent(me.token));
             if (d.code !== 200) return; groupCache = d.data || []; renderGroupList()
         }
-        function renderGroupList() { const el = $('groupList'); el.innerHTML = groupCache.length === 0 ? '<div class="empty-state">No groups yet.<br>Create or join a group to start.</div>' : groupCache.map(g => '<div class="list-item" onclick="openGroupChat(\'' + g.group_id + '\',\'' + escHtml(g.name) + '\')"><div class="li-avatar">\uD83D\uDC65</div><div class="li-info"><div class="li-name">' + escHtml(g.name) + '</div><div class="li-last">' + g.member_count + ' members</div></div></div>').join('') }
+        function renderGroupList() {
+            const el = $('groupList'); el.replaceChildren();
+            if (groupCache.length === 0) {
+                const d = tpl('EmptyState');
+                d.innerHTML = 'No groups yet.<br>Create or join a group to start.';
+                el.appendChild(d);
+                return;
+            }
+            for (const g of groupCache) {
+                const item = tpl('GroupItem');
+                item.querySelector('.li-name').textContent = g.name;
+                item.querySelector('.li-last').textContent = g.member_count + ' members';
+                item.onclick = () => openGroupChat(g.group_id, g.name);
+                el.appendChild(item);
+            }
+        }
 
         function openModal(t) {
             $('modalOverlay').classList.add('show'); $('groupErr').textContent = ''; $('joinGroupErr').textContent = '';
@@ -1225,7 +1340,16 @@
                 return
             } searchTimer = setTimeout(async () => {
                 const d = await api('/api/user/search?token=' + encodeURIComponent(me.token) + '&q=' + encodeURIComponent(q) + '&limit=8');
-                if (d.code !== 200 || !d.data) return; $('searchResults').innerHTML = d.data.map(u => '<div class="item" onclick="startChat(\'' + u.id + '\',\'' + escHtml(u.username) + '\')"><div class="sr-avatar">' + u.username[0].toUpperCase() + '</div><div>' + escHtml(u.username) + '</div></div>').join(''); $('searchResults').classList.add('show')
+                if (d.code !== 200 || !d.data) return;
+                const el = $('searchResults'); el.replaceChildren();
+                for (const u of d.data) {
+                    const item = tpl('SearchItem');
+                    item.querySelector('.sr-avatar').textContent = u.username[0].toUpperCase();
+                    item.lastElementChild.textContent = u.username;
+                    item.onclick = () => startChat(u.id, u.username);
+                    el.appendChild(item);
+                }
+                el.classList.add('show')
             }, 300)
         }
         function startChat(uid, name) {

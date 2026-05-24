@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM im_group_messages WHERE from_uid = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "40b8c48100d9f364f0cc10a5204f00158f6af6bb9813de5474e4bccbd084c405"
+}
