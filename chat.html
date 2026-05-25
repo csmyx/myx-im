@@ -1013,7 +1013,7 @@
         // ── User & Connection ──
         let me = null,                 // {uid, username, token} — current logged-in user
             ws = null,                 // WebSocket instance for IM push + commands
-        // ── Peer / Chat state ──
+            // ── Peer / Chat state ──
             peers = {},                // {uid: {username}} — cached peer usernames
             messages = [],             // currently loaded private chat messages
             groupMessages = [];        // currently loaded group chat messages
@@ -1025,7 +1025,7 @@
         // ── Message tracking ──
         let pendingMsgs = {},          // {seq: {el, msg}} — sent messages awaiting ACK
             msgById = {},              // {msg_id: DOM element} — for status updates (✓ Read)
-        // ── Typing indicator ──
+            // ── Typing indicator ──
             typingTimer = null,        // setTimeout handle for debounced sendTyping
             typingTimeout = null;      // setTimeout handle for "is typing..." fade-out
         // ── Lists & navigation ──
@@ -1729,7 +1729,13 @@
             }
             div.querySelector(".msg-time").textContent = t;
             if (isMine && m.msg_id) {
-                div.querySelector(".msg-status").innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
+                // Show read status from history (read_count/total), or default to Sent
+                if (m.read_count > 0 && m.total > 0) {
+                    div.querySelector(".msg-status").innerHTML =
+                        '<span class="delivered">\u2713 Read ' + m.read_count + '/' + m.total + '</span>';
+                } else {
+                    div.querySelector(".msg-status").innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
+                }
                 msgById[m.msg_id] = div;
             }
             ml.appendChild(div);
