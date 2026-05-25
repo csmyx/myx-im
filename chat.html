@@ -1112,6 +1112,29 @@
                 const el = $("nav" + id);
                 if (el) el.querySelector("span:last-child").textContent = t(id.toLowerCase());
             });
+            // Page headers & static UI
+            $("searchInput").placeholder = t("searchUsers");
+            const gh = document.querySelector("#pageGroups .page-header .title");
+            if (gh) gh.textContent = t("groupsTitle");
+            const fh = document.querySelector("#pageFriends .page-header .title");
+            if (fh) fh.textContent = t("friendsTitle");
+            const gb = document.querySelectorAll("#pageGroups .header-actions button");
+            if (gb[0]) { gb[0].textContent = t("create"); gb[0].innerHTML = t("create"); }
+            if (gb[1]) { gb[1].textContent = t("join"); gb[1].innerHTML = t("join"); }
+            // Modals
+            const mc = document.querySelector("#modalCreateGroup h3");
+            if (mc) mc.textContent = t("createGroup");
+            const mj = document.querySelector("#modalJoinGroup h3");
+            if (mj) mj.textContent = t("joinGroup");
+            document.querySelector('#modalCreateGroup label[for="groupName"]').textContent = t("groupName");
+            const mcb = document.querySelectorAll("#modalCreateGroup .btn-row button");
+            if (mcb[0]) mcb[0].textContent = t("cancel");
+            if (mcb[1]) mcb[1].textContent = t("create");
+            document.querySelector('#modalJoinGroup label[for="groupSearch"]').textContent = t("searchByName");
+            $("groupSearch").placeholder = t("searchByName");
+            const mjb = document.querySelectorAll("#modalJoinGroup .btn-row button");
+            if (mjb[0]) mjb[0].textContent = t("cancel");
+            $("groupName").placeholder = t("groupName");
             renderConvList(); renderGroupList(); renderFriendList();
             if (currentPage === "settings") renderSettings();
         }
@@ -1934,7 +1957,7 @@
                     badge.textContent = groupUnreadCounts[g.group_id];
                     item.querySelector(".li-name").appendChild(badge);
                 }
-                item.querySelector(".li-last").textContent = g.member_count + " members, by " + (g.owner_name || "?");
+                item.querySelector(".li-last").textContent = g.member_count + t("membersBy") + (g.owner_name || "?");
                 item.onclick = () => openGroupChat(g.group_id, g.name);
                 el.appendChild(item);
             }
