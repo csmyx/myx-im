@@ -48,6 +48,7 @@ erDiagram
         text content
         smallint msg_type
         text client_msg_id UK
+        int read_count "default 0 (other members who read)"
         timestamptz created_at
     }
 
@@ -234,16 +235,17 @@ sequenceDiagram
     Bob->>Bob: appendGroupMsg (real-time)
     Bob->>Server: WS {cmd:"mark_group_read", data:{group_id}}
     Server->>DB: UPSERT im_group_read_cursors (last_read_msg_id=100)
-    Server->>DB: get_group_read_counts(group_id, msg_ids=[100])<br/>→ read:1 (Bob), total:2 (Bob+Carol, sender Alice excluded)
-    Server->>Alice: Push group_delivery_update {group_id, msg_statuses:[{msg_id:100, read:1, total:2}]}
+    Server->>DB: UPDATE read_count+1 WHERE id>old_cursor AND id≤100 AND from_uid≠Bob<br/>(increments Alice's msg read_count to 1)
+    Server->>DB: SELECT id, from_uid, read_count → delta: [(100, Alice, 1/2)]
+    Server->>Alice: Push group_delivery_update {msg_statuses:[{msg_id:100, read:1, total:2}]}
     Alice->>Alice: handleGroupDeliveryUpdate → msgById[100] → ✓ Read 1/2
     Carol->>Carol: groupUnreadCounts[group_id]++
 
     Note over Carol: === Carol opens the group ===
     Carol->>Server: GET /api/group/history?group_id=...&token=...
-    Server->>DB: UPSERT im_group_read_cursors (last_read_msg_id=100)
-    Server->>DB: get_group_read_counts(group_id, msg_ids=[100])<br/>→ read:2 (Bob+Carol), total:2
-    Server-->>Carol: 200 {history items}
+    Server->>DB: mark_group_read_and_get_delta: old_cursor=0→100<br/>UPDATE read_count+1 (Alice's msg: 1→2)
+    Server->>DB: SELECT delta → [(100, Alice, 2/2)]
+    Server-->>Carol: 200 {history items with read_count, total}
     Server->>Alice: Push group_delivery_update {msg_statuses:[{msg_id:100, read:2, total:2}]}
     Alice->>Alice: ✓ Read 1/2 → ✓ Read 2/2
 ```
@@ -331,15 +333,22 @@ graph TB
 
 ## Key Design Decisions
 
-| Decision                                    | Rationale                                       |
-| ------------------------------------------- | ----------------------------------------------- |
-| Private & group messages in separate tables | Cleaner queries, different delivery semantics   |
-| `seen` flag on messages                     | Offline sync without extra table                |
-| `client_msg_id` UNIQUE                      | Dedup at DB level (ON CONFLICT DO NOTHING)      |
-| Composite PK on `im_read_cursors`           | One cursor per (user, peer) pair                |
-| `ON DELETE CASCADE` on group children       | Auto-cleanup when group deleted                 |
-| UUID everywhere                             | No collision risk, client-side generation       |
-| `include_str!("../chat.html")`              | Single binary deployment, no static file server |
+| Decision                                    | Rationale                                          |
+| ------------------------------------------- | -------------------------------------------------- |
+| Private & group messages in separate tables | Cleaner queries, different delivery semantics      |
+| `seen` flag on messages                     | Offline sync without extra table                   |
+| `client_msg_id` UNIQUE                      | Dedup at DB level (ON CONFLICT DO NOTHING)         |
+| Composite PK on `im_read_cursors`           | One cursor per (user, peer) pair                   |
+| `read_count` on `im_group_messages`         | O(1) atomic increment, no aggregation at read time |
+| `ON DELETE CASCADE` on group children       | Auto-cleanup when group deleted                    |
+| UUID everywhere                             | No collision risk, client-side generation          |
+| `include_str!("../chat.html")`              | Single binary deployment, no static file server    |
+
+**Why `read_count` instead of COUNT aggregation**: each read is a single
+`UPDATE ... SET read_count = read_count + 1 WHERE id = ANY($delta)` (write-time
+work). The `group_delivery_update` is a trivial `SELECT read_count` lookup.
+No `GROUP BY`, no `LEFT JOIN`, no `COUNT()` scan. Industry standard for group
+read receipts (WhatsApp, Telegram small groups, iMessage).
 
 ---
 

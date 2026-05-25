@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM im_group_messages\n           WHERE group_id = $1 AND from_uid != $2\n           ORDER BY id",
+  "query": "SELECT COALESCE(last_read_msg_id, 0) FROM im_group_read_cursors\n           WHERE user_id = $1 AND group_id = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "coalesce",
         "type_info": "Int8"
       }
     ],
@@ -16,8 +16,8 @@
       ]
     },
     "nullable": [
-      false
+      null
     ]
   },
-  "hash": "e022a72f80bdf235084f2850fda10d1df6d8c965dbd5b584bcee257d282db32f"
+  "hash": "b1c1bd962f9bafd3380fa70e98e7f5256a1403588175471d7c2c476528416218"
 }

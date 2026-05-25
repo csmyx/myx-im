@@ -476,7 +476,9 @@ pub async fn get_group_history(
             u.username AS from_name,
             gm.content,
             gm.msg_type,
-            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS "send_time!"
+            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS "send_time!",
+            gm.read_count AS "read_count!",
+            ((SELECT COUNT(*) FROM im_group_members WHERE group_id = gm.group_id) - 1) AS "total!: i64"
         FROM im_group_messages gm
         JOIN im_users u ON u.id = gm.from_uid
         WHERE gm.group_id = $1
@@ -522,87 +524,98 @@ pub async fn get_unseen_group_counts(
     Ok(rows.into_iter().map(|r| (r.group_id, r.count)).collect())
 }
 
-/// For a batch of message IDs in a group, count how many OTHER members have read each.
-/// Excludes each message's own sender from the read count.
-/// Returns Vec<(msg_id, read_count, total_other_members)>.
-pub async fn get_group_read_counts(
-    pool: &PgPool,
-    group_id: Uuid,
-    msg_ids: &[i64],
-) -> anyhow::Result<Vec<(i64, i64, i64)>> {
-    if msg_ids.is_empty() {
-        return Ok(vec![]);
-    }
-    // purpose: for each message, count how many OTHER members have read it
-    // (excludes the message sender from the reader count)
-    let rows = sqlx::query!(
-        r#"SELECT m.msg_id as "msg_id!", COUNT(cr.user_id) as "read!: i64",
-                  ((SELECT COUNT(*) FROM im_group_members WHERE group_id = $1) - 1) as "total!: i64"
-           FROM unnest($2::bigint[]) AS m(msg_id)
-           JOIN im_group_messages gm ON gm.id = m.msg_id
-           LEFT JOIN im_group_read_cursors cr ON cr.group_id = $1
-                  AND cr.last_read_msg_id >= m.msg_id
-                  AND cr.user_id != gm.from_uid
-           GROUP BY m.msg_id"#,
-        group_id,
-        msg_ids,
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("get_group_read_counts failed: {e}");
-        e
-    })?;
-
-    tracing::debug!(
-        "get_group_read_counts group={group_id} msg_ids={msg_ids:?} results={:?}",
-        rows.iter()
-            .map(|r| (r.msg_id, r.read, r.total))
-            .collect::<Vec<_>>()
-    );
-
-    Ok(rows
-        .into_iter()
-        .map(|r| (r.msg_id, r.read, r.total))
-        .collect())
-}
-
-/// Get all message IDs in a group sent by OTHER members (not the viewer).
-/// Used by mark_group_read to recompute read counts for affected senders.
-pub async fn get_group_msg_ids_from_others(
+/// Mark a group as read up to the latest message: increment read_count for
+/// delta messages (old_cursor < id ≤ latest, from other senders), then return
+/// the updated delta rows so the caller can push GroupDeliveryUpdate.
+pub async fn mark_group_read_and_get_delta(
     pool: &PgPool,
     group_id: Uuid,
     viewer_uid: Uuid,
-) -> anyhow::Result<Vec<i64>> {
-    // purpose: fetch all message IDs from other senders for read count recomputation
-    sqlx::query_scalar!(
-        r#"SELECT id FROM im_group_messages
-           WHERE group_id = $1 AND from_uid != $2
+) -> anyhow::Result<Vec<crate::model::DeltaItem>> {
+    use crate::model::DeltaItem;
+
+    // 1. Get latest message ID in the group
+    let latest: Option<i64> = sqlx::query_scalar!(
+        r#"SELECT MAX(id) FROM im_group_messages WHERE group_id = $1"#,
+        group_id,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
+
+    let Some(latest) = latest else {
+        return Ok(vec![]);
+    };
+
+    // 2. Get old read cursor position (0 if never read)
+    let old_cursor: i64 = sqlx::query_scalar!(
+        r#"SELECT COALESCE(last_read_msg_id, 0) FROM im_group_read_cursors
+           WHERE user_id = $1 AND group_id = $2"#,
+        viewer_uid,
+        group_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?
+    .flatten()
+    .unwrap_or(0);
+
+    // 3. Upsert cursor to latest
+    upsert_group_read_cursor(pool, viewer_uid, group_id, latest).await?;
+
+    // 4. Batch-increment read_count for delta messages (exclude viewer's own)
+    let result = sqlx::query!(
+        r#"UPDATE im_group_messages SET read_count = read_count + 1
+           WHERE group_id = $1 AND id > $2 AND id <= $3 AND from_uid != $4"#,
+        group_id,
+        old_cursor,
+        latest,
+        viewer_uid,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("mark_group_read increment failed: {e}");
+        anyhow::anyhow!(e)
+    })?;
+
+    if result.rows_affected() == 0 {
+        return Ok(vec![]);
+    }
+
+    // 5. Return delta items with updated read counts
+    let rows = sqlx::query!(
+        r#"SELECT id as "msg_id!", from_uid, read_count as "read_count!: i64",
+                  ((SELECT COUNT(*) FROM im_group_members WHERE group_id = $1) - 1) as "total!: i64"
+           FROM im_group_messages
+           WHERE group_id = $1 AND id > $2 AND id <= $3 AND from_uid != $4
            ORDER BY id"#,
         group_id,
+        old_cursor,
+        latest,
         viewer_uid,
     )
     .fetch_all(pool)
     .await
     .map_err(|e| {
-        tracing::error!("get_group_msg_ids_from_others failed: {e}");
+        tracing::error!("mark_group_read fetch delta failed: {e}");
         anyhow::anyhow!(e)
-    })
-}
+    })?;
 
-/// Get the sender of a single group message by its ID.
-pub async fn get_group_msg_sender(pool: &PgPool, msg_id: i64) -> anyhow::Result<Option<Uuid>> {
-    // purpose: lookup the from_uid for a group message
-    sqlx::query_scalar!(
-        r#"SELECT from_uid FROM im_group_messages WHERE id = $1"#,
-        msg_id,
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("get_group_msg_sender failed: {e}");
-        anyhow::anyhow!(e)
-    })
+    tracing::info!(
+        "mark_group_read_delta: viewer={viewer_uid} group={group_id} old={old_cursor} new={latest} delta={}",
+        rows.len()
+    );
+
+    Ok(rows
+        .into_iter()
+        .map(|r| DeltaItem {
+            msg_id: r.msg_id,
+            from_uid: r.from_uid,
+            read_count: r.read_count,
+            total: r.total,
+        })
+        .collect())
 }
 
 pub async fn persist_group_message(
@@ -749,32 +762,6 @@ pub async fn upsert_group_read_cursor(
     Ok(())
 }
 
-/// Mark a group as read up to the latest message, and return message IDs from
-/// OTHER senders whose read counts changed (for pushing GroupDeliveryUpdate).
-pub async fn mark_group_read_and_get_affected(
-    pool: &PgPool,
-    group_id: Uuid,
-    viewer_uid: Uuid,
-) -> anyhow::Result<Vec<i64>> {
-    // purpose: upsert read cursor to the latest message, then return all msg_ids
-    // from other senders so the caller can recompute read counts.
-    let latest: Option<i64> = sqlx::query_scalar!(
-        r#"SELECT MAX(id) FROM im_group_messages WHERE group_id = $1"#,
-        group_id,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| anyhow::anyhow!(e))?;
-
-    let Some(latest) = latest else {
-        return Ok(vec![]);
-    };
-
-    upsert_group_read_cursor(pool, viewer_uid, group_id, latest).await?;
-
-    get_group_msg_ids_from_others(pool, group_id, viewer_uid).await
-}
-
 pub async fn get_unseen_group_messages(
     pool: &PgPool,
     user_id: Uuid,
@@ -791,7 +778,9 @@ pub async fn get_unseen_group_messages(
             u.username AS from_name,
             gm.content,
             gm.msg_type,
-            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS "send_time!"
+            EXTRACT(EPOCH FROM gm.created_at)::bigint * 1000 AS "send_time!",
+            gm.read_count AS "read_count!",
+            ((SELECT COUNT(*) FROM im_group_members WHERE group_id = gm.group_id) - 1) AS "total!: i64"
         FROM im_group_messages gm
         JOIN im_users u ON u.id = gm.from_uid
         LEFT JOIN im_group_read_cursors cr ON cr.user_id = $1 AND cr.group_id = gm.group_id

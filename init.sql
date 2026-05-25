@@ -45,6 +45,7 @@ CREATE TABLE im_group_messages (
     content TEXT NOT NULL,
     msg_type SMALLINT NOT NULL DEFAULT 1,
     client_msg_id TEXT UNIQUE,
+    read_count INT NOT NULL DEFAULT 0,  -- number of OTHER members who have read past this message
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

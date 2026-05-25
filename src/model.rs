@@ -187,6 +187,16 @@ pub struct GroupDeliveryUpdate {
     pub reader_uid: Uuid,
 }
 
+/// Returned by mark_group_read_and_get_delta: per-message read status change.
+/// Used to construct GroupDeliveryUpdate pushes efficiently.
+#[derive(Debug)]
+pub struct DeltaItem {
+    pub msg_id: i64,
+    pub from_uid: Uuid,
+    pub read_count: i64,
+    pub total: i64,
+}
+
 /// Group chat downstream push (server → all online group members except sender)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GroupPushMsg {
@@ -242,6 +252,10 @@ pub struct GroupHistoryItem {
     pub content: String,
     pub msg_type: i16,
     pub send_time: i64,
+    /// How many OTHER members have read this message (sender excluded)
+    pub read_count: i64,
+    /// Total OTHER members in the group (sender excluded)
+    pub total: i64,
 }
 
 /// Group members query

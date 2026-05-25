@@ -1144,8 +1144,7 @@ async fn test_group_mark_read_realtime() {
                 "seq": 0,
                 "data": {"group_id": group_id}
             })
-            .to_string()
-            .into(),
+            .to_string(),
         ))
         .await
         .unwrap();

@@ -268,61 +268,43 @@ async fn handle_biz_msg(
                     return;
                 }
             };
-            match dao::mark_group_read_and_get_affected(&state.pg_pool, group_id, uid).await {
-                Ok(msg_ids) if !msg_ids.is_empty() => {
-                    tracing::info!(
-                        "mark_group_read: viewer={uid} group={group_id} affected_msgs={:?}",
-                        msg_ids
-                    );
-                    if let Ok(counts) =
-                        dao::get_group_read_counts(&state.pg_pool, group_id, &msg_ids).await
-                    {
-                        // Group by sender UID — need to know which sender owns each msg_id
-                        let mut sender_msgs: std::collections::HashMap<Uuid, Vec<i64>> =
-                            std::collections::HashMap::new();
-                        // Fetch sender per message (we already know they're from others)
-                        for mid in &msg_ids {
-                            if let Ok(Some(from_uid)) =
-                                dao::get_group_msg_sender(&state.pg_pool, *mid).await
-                            {
-                                sender_msgs.entry(from_uid).or_default().push(*mid);
-                            }
-                        }
-                        let count_map: std::collections::HashMap<i64, (i64, i64)> = counts
-                            .into_iter()
-                            .map(|(mid, r, t)| (mid, (r, t)))
+            match dao::mark_group_read_and_get_delta(&state.pg_pool, group_id, uid).await {
+                Ok(delta) if !delta.is_empty() => {
+                    // Group delta items by sender UID
+                    let mut sender_msgs: std::collections::HashMap<
+                        Uuid,
+                        Vec<&crate::model::DeltaItem>,
+                    > = std::collections::HashMap::new();
+                    for d in &delta {
+                        sender_msgs.entry(d.from_uid).or_default().push(d);
+                    }
+
+                    for (sender_uid, items) in &sender_msgs {
+                        let statuses: Vec<crate::model::GroupMsgReadStatus> = items
+                            .iter()
+                            .map(|d| crate::model::GroupMsgReadStatus {
+                                msg_id: d.msg_id,
+                                read: d.read_count,
+                                total: d.total,
+                            })
                             .collect();
 
-                        for (sender_uid, mids) in &sender_msgs {
-                            let mut statuses = vec![];
-                            for mid in mids {
-                                if let Some((read, total)) = count_map.get(mid) {
-                                    statuses.push(crate::model::GroupMsgReadStatus {
-                                        msg_id: *mid,
-                                        read: *read,
-                                        total: *total,
-                                    });
-                                }
-                            }
-                            if !statuses.is_empty() {
-                                let update = crate::model::GroupDeliveryUpdate {
-                                    group_id,
-                                    msg_statuses: statuses,
-                                    reader_uid: uid,
-                                };
-                                if let Ok(json) = serde_json::to_string(&update) {
-                                    tracing::info!(
-                                        "mark_group_read: push delivery_update to sender={sender_uid}: {json}"
-                                    );
-                                    state.send_to_user(
-                                        *sender_uid,
-                                        Utf8Bytes::from(format!(
-                                            r#"{{"cmd":"group_delivery_update","seq":0,"data":{}}}"#,
-                                            json
-                                        )),
-                                    );
-                                }
-                            }
+                        let update = crate::model::GroupDeliveryUpdate {
+                            group_id,
+                            msg_statuses: statuses,
+                            reader_uid: uid,
+                        };
+                        if let Ok(json) = serde_json::to_string(&update) {
+                            tracing::info!(
+                                "mark_group_read: push delivery_update to sender={sender_uid}: {json}"
+                            );
+                            state.send_to_user(
+                                *sender_uid,
+                                Utf8Bytes::from(format!(
+                                    r#"{{"cmd":"group_delivery_update","seq":0,"data":{}}}"#,
+                                    json
+                                )),
+                            );
                         }
                     }
                 }
@@ -998,89 +980,49 @@ async fn group_history_handler(
 
     match dao::get_group_history(&state.pg_pool, query.group_id, query.before, limit).await {
         Ok(items) => {
-            // Mark as read: upsert cursor to the latest message ID
-            if let Some(latest) = items.iter().map(|m| m.msg_id).max() {
-                let _ = dao::upsert_group_read_cursor(
-                    &state.pg_pool,
-                    claims.user_id,
-                    query.group_id,
-                    latest,
-                )
-                .await;
-
-                // Compute read counts for messages from OTHER senders
-                // and push GroupDeliveryUpdate to each sender
-                let other_msgs: Vec<i64> = items
-                    .iter()
-                    .filter(|m| m.from_uid != claims.user_id)
-                    .map(|m| m.msg_id)
-                    .collect();
-                tracing::debug!(
-                    "group_history: viewer={}, group={}, total_items={}, other_msgs={:?}",
-                    claims.user_id,
-                    query.group_id,
-                    items.len(),
-                    other_msgs
-                );
-                if !other_msgs.is_empty()
-                    && let Ok(counts) =
-                        dao::get_group_read_counts(&state.pg_pool, query.group_id, &other_msgs)
-                            .await
-                {
-                    tracing::debug!(
-                        "group_history read_counts: {:?}",
-                        counts
-                            .iter()
-                            .map(|(mid, r, t)| format!("{mid}:{r}/{t}"))
-                            .collect::<Vec<_>>()
-                    );
-                    // Group by sender UID
-                    let mut sender_msgs: std::collections::HashMap<Uuid, Vec<i64>> =
-                        std::collections::HashMap::new();
-                    for item in &items {
-                        if item.from_uid != claims.user_id {
-                            sender_msgs
-                                .entry(item.from_uid)
-                                .or_default()
-                                .push(item.msg_id);
-                        }
+            // Mark group as read (increment read_count for delta), push delivery updates
+            match dao::mark_group_read_and_get_delta(&state.pg_pool, query.group_id, claims.user_id)
+                .await
+            {
+                Ok(delta) if !delta.is_empty() => {
+                    // Group delta items by sender UID
+                    let mut sender_msgs: std::collections::HashMap<
+                        Uuid,
+                        Vec<&crate::model::DeltaItem>,
+                    > = std::collections::HashMap::new();
+                    for d in &delta {
+                        sender_msgs.entry(d.from_uid).or_default().push(d);
                     }
-                    // Build read count lookup
-                    let count_map: std::collections::HashMap<i64, (i64, i64)> = counts
-                        .into_iter()
-                        .map(|(mid, r, t)| (mid, (r, t)))
-                        .collect();
-
-                    for (sender_uid, mids) in &sender_msgs {
-                        let mut statuses = vec![];
-                        for mid in mids {
-                            if let Some((read, total)) = count_map.get(mid) {
-                                statuses.push(crate::model::GroupMsgReadStatus {
-                                    msg_id: *mid,
-                                    read: *read,
-                                    total: *total,
-                                });
-                            }
-                        }
-                        if !statuses.is_empty() {
-                            let update = crate::model::GroupDeliveryUpdate {
-                                group_id: query.group_id,
-                                msg_statuses: statuses,
-                                reader_uid: claims.user_id,
-                            };
-                            if let Ok(json) = serde_json::to_string(&update) {
-                                let payload = Utf8Bytes::from(format!(
+                    for (sender_uid, items) in &sender_msgs {
+                        let statuses: Vec<crate::model::GroupMsgReadStatus> = items
+                            .iter()
+                            .map(|d| crate::model::GroupMsgReadStatus {
+                                msg_id: d.msg_id,
+                                read: d.read_count,
+                                total: d.total,
+                            })
+                            .collect();
+                        let update = crate::model::GroupDeliveryUpdate {
+                            group_id: query.group_id,
+                            msg_statuses: statuses,
+                            reader_uid: claims.user_id,
+                        };
+                        if let Ok(json) = serde_json::to_string(&update) {
+                            tracing::debug!(
+                                "push group_delivery_update to sender={sender_uid}: {json}"
+                            );
+                            state.send_to_user(
+                                *sender_uid,
+                                Utf8Bytes::from(format!(
                                     r#"{{"cmd":"group_delivery_update","seq":0,"data":{}}}"#,
                                     json
-                                ));
-                                tracing::debug!(
-                                    "push group_delivery_update to sender={sender_uid}: {json}"
-                                );
-                                state.send_to_user(*sender_uid, payload);
-                            }
+                                )),
+                            );
                         }
                     }
                 }
+                Ok(_) => {}
+                Err(e) => tracing::error!("mark_group_read failed in history handler: {e}"),
             }
             (StatusCode::OK, Json(Res::success(items, "ok"))).into_response()
         }
