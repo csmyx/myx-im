@@ -207,7 +207,10 @@ sequenceDiagram
 
 ---
 
-## Group Chat — Send & Push
+## Group Chat — Full Flow
+
+> Flow covers: send → ACK → push to members → real-time `mark_group_read` →
+> `group_delivery_update` with per-message read counts (sender excluded).
 
 ```mermaid
 sequenceDiagram
@@ -218,16 +221,82 @@ sequenceDiagram
     participant DB
 
     Note over Alice, Carol: Alice, Bob, Carol in group "Dev Team"
-    Alice->>Server: WS {cmd:"group_chat", data:{group_id:..., content:"@all deploy done"}}
+    Alice->>Server: WS {cmd:"group_chat", data:{group_id, content, msg_type, from_name:"Alice"}}
     Server->>DB: is_group_member(Alice) → true
     Server->>DB: INSERT im_group_messages
     DB-->>Server: msg_id=100
-    Server-->>Alice: ACK {cmd:"group_chat_ack", data:{msg_id:100, online_count:2}}
+    Server-->>Alice: ACK {cmd:"group_chat_ack", seq, data:{msg_id:100, send_time}}
+    Alice->>Alice: pendingMsgs[seq] → msgById[100] = DOM (◷ Sent)
     Server->>Bob: Push GroupPushMsg {group_id, from_uid:Alice, from_name:"Alice", content}
     Server->>Carol: Push GroupPushMsg (same)
-    Bob->>Bob: Show "Alice: @all deploy done"
-    Carol->>Carol: Show "Alice: @all deploy done"
+
+    Note over Bob, Carol: === Bob is viewing the group, Carol is not ===
+    Bob->>Bob: appendGroupMsg (real-time)
+    Bob->>Server: WS {cmd:"mark_group_read", data:{group_id}}
+    Server->>DB: UPSERT im_group_read_cursors (last_read_msg_id=100)
+    Server->>DB: get_group_read_counts(group_id, msg_ids=[100])<br/>→ read:1 (Bob), total:2 (Bob+Carol, sender Alice excluded)
+    Server->>Alice: Push group_delivery_update {group_id, msg_statuses:[{msg_id:100, read:1, total:2}]}
+    Alice->>Alice: handleGroupDeliveryUpdate → msgById[100] → ✓ Read 1/2
+    Carol->>Carol: groupUnreadCounts[group_id]++
+
+    Note over Carol: === Carol opens the group ===
+    Carol->>Server: GET /api/group/history?group_id=...&token=...
+    Server->>DB: UPSERT im_group_read_cursors (last_read_msg_id=100)
+    Server->>DB: get_group_read_counts(group_id, msg_ids=[100])<br/>→ read:2 (Bob+Carol), total:2
+    Server-->>Carol: 200 {history items}
+    Server->>Alice: Push group_delivery_update {msg_statuses:[{msg_id:100, read:2, total:2}]}
+    Alice->>Alice: ✓ Read 1/2 → ✓ Read 2/2
 ```
+
+### Group Read Status State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Sending: Alice sends group msg
+    Sending --> Sent: group_chat_ack (msg_id mapped)
+    Sent --> PartialRead: Bob views group → mark_group_read
+    Sent --> PartialRead: Bob opens group history
+    PartialRead --> AllRead: Carol views group / opens history
+    AllRead --> [*]
+
+    note right of Sending
+        ◷ Sending (temp seq)
+        pendingMsgs[seq] = {el, msg}
+    end note
+
+    note right of Sent
+        ◷ Sent
+        msgById[real_msg_id] = el
+    end note
+
+    note right of PartialRead
+        ✓ Read 1/2
+        group_delivery_update
+        handleGroupDeliveryUpdate()
+    end note
+
+    note right of AllRead
+        ✓ Read 2/2
+    end note
+```
+
+### Trigger Matrix
+
+| Trigger                  | Initiated by                | Pushed to                     |
+| ------------------------ | --------------------------- | ----------------------------- |
+| `group_chat` WS          | Sender                      | Members (push) + Sender (ack) |
+| `mark_group_read` WS     | Viewer receives push online | Each sender (for their msgs)  |
+| `GET /api/group/history` | Viewer loads/opens group    | Each sender (for their msgs)  |
+
+### Key Data Structures
+
+| Structure               | Direction        | Purpose                                          |
+| ----------------------- | ---------------- | ------------------------------------------------ |
+| `group_chat`            | Client → Server  | Send group message (includes `from_name`)        |
+| `group_push`            | Server → Members | Deliver message to online members (excl. sender) |
+| `group_chat_ack`        | Server → Sender  | Return real `msg_id`, sender maps `msgById`      |
+| `mark_group_read`       | Client → Server  | Viewer marks group read in real-time             |
+| `group_delivery_update` | Server → Sender  | Read count changed: `{msg_id, read, total}`      |
 
 ---
 
