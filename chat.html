@@ -845,14 +845,13 @@
             </div>
             <div class="msg-list" id="msgList">
                 <div class="msg-loading" id="loadMore" onclick="loadHistory()">
-                    Load earlier messages
+
                 </div>
             </div>
             <div class="typing-indicator" id="typingHint" style="display: none"></div>
             <div class="input-bar">
-                <textarea id="msgInput" rows="1" placeholder="Type a message..."
-                    onkeydown="onMsgKey(event)"></textarea><button class="btn-send" id="btnSend"
-                    onclick="sendMessage()">Send</button>
+                <textarea id="msgInput" rows="1" placeholder="" onkeydown="onMsgKey(event)"></textarea><button
+                    class="btn-send" id="btnSend" onclick="sendMessage()"></button>
             </div>
         </div>
 
@@ -862,28 +861,26 @@
                 <div class="avatar" id="gchAvatar">👥</div>
                 <div class="info">
                     <div class="title" id="gchName"></div>
-                    <div class="subtitle" id="gchStatus">group</div>
+                    <div class="subtitle" id="gchStatus"></div>
                 </div>
             </div>
             <div class="msg-list" id="gmsgList">
                 <div class="msg-loading" id="gloadMore" onclick="loadGroupHistory()">
-                    Load earlier messages
+
                 </div>
             </div>
             <div class="input-bar">
-                <textarea id="gmsgInput" rows="1" placeholder="Type a message..."
-                    onkeydown="onGroupMsgKey(event)"></textarea><button class="btn-send" id="gbtnSend"
-                    onclick="sendGroupMessage()">
-                    Send
+                <textarea id="gmsgInput" rows="1" placeholder="" onkeydown="onGroupMsgKey(event)"></textarea><button
+                    class="btn-send" id="gbtnSend" onclick="sendGroupMessage()">
                 </button>
             </div>
         </div>
 
-        <div class="page" id="pageMe">
+        <div class="page" id="pageSettings">
             <div class="page-header">
                 <button class="btn-back" onclick="goTo('chats')">←</button>
                 <div class="info">
-                    <div class="title">Profile</div>
+                    <div class="title"></div>
                 </div>
             </div>
             <div class="list-area" style="
@@ -895,46 +892,45 @@
                     ">
                 <div class="avatar" id="meAvatar" style="width: 64px; height: 64px; font-size: 28px"></div>
                 <div class="title" id="meName" style="font-size: 18px"></div>
-                <button onclick="toggleTheme()" style="
-                            padding: 10px 24px;
-                            border: 1px solid var(--border);
-                            border-radius: var(--radius-sm);
-                            font-size: 14px;
-                        ">
-                    🌓 Toggle Theme
-                </button>
-                <button onclick="doLogout()" style="
-                            padding: 10px 24px;
-                            border: 1px solid var(--danger);
-                            border-radius: var(--radius-sm);
-                            font-size: 14px;
-                            color: var(--danger);
-                        ">
-                    Logout
-                </button>
-                <button id="btnDeleteAccount" onclick="doDeleteAccount()" style="
-                            padding: 10px 24px;
-                            border: 1px solid var(--danger);
-                            border-radius: var(--radius-sm);
-                            font-size: 14px;
-                            color: var(--danger);
-                        ">
-                    Delete Account
-                </button>
+                <div style="width:100%;max-width:300px;display:flex;flex-direction:column;gap:8px">
+                    <div id="lblAppearance"
+                        style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px"></div>
+                    <button id="btnTheme"
+                        style="padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;text-align:left;width:100%"></button>
+                    <div id="lblLanguage"
+                        style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:8px">
+                    </div>
+                    <button id="btnLang"
+                        style="padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;text-align:left;width:100%"></button>
+                    <div style="display:flex;width:100%;max-width:300px">
+                        <button id="btnLangZh"
+                            style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm) 0 0 var(--radius-sm);font-size:14px;text-align:center">中文</button>
+                        <button id="btnLangEn"
+                            style="flex:1;padding:10px;border:1px solid var(--border);border-left:none;border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:14px;text-align:center">English</button>
+                    </div>
+                    <div id="lblAccount"
+                        style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:8px">
+                    </div>
+                    <button id="btnLogout"
+                        style="padding:10px 16px;border:1px solid var(--danger);border-radius:var(--radius-sm);font-size:14px;color:var(--danger);text-align:left;width:100%"></button>
+                    <button id="btnDeleteAccount"
+                        style="padding:10px 16px;border:1px solid var(--danger);border-radius:var(--radius-sm);font-size:14px;color:var(--danger);text-align:left;width:100%"></button>
+                </div>
             </div>
         </div>
 
         <div id="bottomNav" style="display: none">
             <button id="navChats" class="active" onclick="goTo('chats')">
-                <span class="icon">💬</span>Chats
+                <span class="icon">💬</span><span>Chats</span>
             </button>
             <button id="navGroups" onclick="goTo('groups')">
-                <span class="icon">👥</span>Groups
+                <span class="icon">👥</span><span>Groups</span>
             </button>
             <button id="navFriends" onclick="goTo('friends')">
-                <span class="icon">👤</span>Friends
+                <span class="icon">👤</span><span>Friends</span>
             </button>
-            <button id="navMe" onclick="goTo('me')"><span class="icon">⚙️</span>Me</button>
+            <button id="navSettings" onclick="goTo('settings')"><span
+                    class="icon">⚙️</span><span>Settings</span></button>
         </div>
     </div>
 
@@ -1022,6 +1018,115 @@
     </template>
 
     <script>
+        // ── i18n ──
+        const I18N = {
+            zh: {
+                appName: "myx-im", appSub: "即时通讯",
+                username: "用户名", password: "密码",
+                register: "注册", login: "登录",
+                registered: "注册成功，请登录。", userExists: "用户已存在，请登录。",
+                badToken: "无效令牌", serverErr: "服务器错误", cantReach: "无法连接服务器",
+                fillAll: "请填写所有字段", userLen: "用户名≥3，密码≥6个字符",
+                chats: "聊天", groups: "群聊", friends: "好友", settings: "设置",
+                searchUsers: "搜索用户...",
+                noConvs: "暂无会话。<br>搜索用户开始聊天。",
+                groupsTitle: "群聊", create: "+ 创建", join: "加入",
+                noGroups: "暂无群聊。<br>创建或加入一个群组开始。",
+                friendsTitle: "好友",
+                noFriends: "暂无好友。<br>搜索用户并添加好友。",
+                typeMsg: "输入消息...", send: "发送",
+                loadEarlier: "加载更早的消息", noMsgsYet: "暂无消息",
+                noEarlier: "没有更早的消息", allLoaded: "已加载全部消息",
+                noMsgs: "暂无消息",
+                noMsgs: "暂无消息",
+                online: "在线", offline: "离线", reconnecting: "重连中...",
+                sending: "发送中...", sent: "已发送", delivered: "已读", read: "已读",
+                membersBy: "个成员，群主",
+                profile: "个人信息", language: "语言",
+                appearance: "外观", account: "账号",
+                chinese: "中文", english: "English",
+                themeToggle: "🌓 切换主题",
+                logout: "退出登录", deleteAccount: "删除账号",
+                deleting: "删除中...",
+                confirmDelete: "删除账号及所有数据？此操作不可撤销。",
+                deleted: "账号已删除。", deleteFailed: "删除失败：",
+                openChatFirst: "请先打开一个聊天",
+                loggedFromOther: "在其他设备登录",
+                isTyping: "正在输入...",
+                group: "群组",
+                createGroup: "创建群聊", groupName: "群聊名称", groupNameRequired: "请输入群聊名称",
+                cancel: "取消",
+                joinGroup: "加入群聊", searchByName: "按名称搜索",
+                addFriend: "+ 添加",
+                searchFailed: "搜索失败", joinFailed: "加入失败",
+                friendAdded: "✓ 已添加",
+            },
+            en: {
+                appName: "myx-im", appSub: "Instant Messaging",
+                username: "Username", password: "Password",
+                register: "Register", login: "Login",
+                registered: "Registered! Now login.", userExists: "User exists, try login.",
+                badToken: "Bad token", serverErr: "Server error", cantReach: "Cannot reach server",
+                fillAll: "Fill all fields", userLen: "Username ≥3, password ≥6 chars",
+                chats: "Chats", groups: "Groups", friends: "Friends", settings: "Settings",
+                searchUsers: "Search users...",
+                noConvs: "No conversations yet.<br>Search for users to start chatting.",
+                groupsTitle: "Groups", create: "+ Create", join: "Join",
+                noGroups: "No groups yet.<br>Create or join a group to start.",
+                friendsTitle: "Friends",
+                noFriends: "No friends yet.<br>Search users and add them as friends.",
+                typeMsg: "Type a message...", send: "Send",
+                loadEarlier: "Load earlier messages", noMsgsYet: "No messages yet",
+                noEarlier: "No earlier messages", allLoaded: "All messages loaded",
+                noMsgs: "No messages",
+                noMsgs: "No messages",
+                online: "online", offline: "offline", reconnecting: "reconnecting...",
+                sending: "Sending...", sent: "Sent", delivered: "Read", read: "Read",
+                membersBy: " members, by ",
+                profile: "Profile", language: "Language",
+                chinese: "中文", english: "English",
+                appearance: "Appearance", account: "Account",
+                themeToggle: "🌓 Toggle Theme",
+                logout: "Logout", deleteAccount: "Delete Account",
+                deleting: "Deleting...",
+                confirmDelete: "Delete your account and all data? This cannot be undone.",
+                deleted: "Account deleted.", deleteFailed: "Failed: ",
+                openChatFirst: "Open a chat first",
+                loggedFromOther: "Logged in from another device",
+                isTyping: " is typing...",
+                group: "group",
+                createGroup: "Create Group", groupName: "Group Name", groupNameRequired: "Enter a group name",
+                cancel: "Cancel",
+                joinGroup: "Join Group", searchByName: "Search by name",
+                addFriend: "+ Add",
+                searchFailed: "Search failed", joinFailed: "Join failed",
+                friendAdded: "✓ Friend",
+            }
+        };
+        let lang = localStorage.getItem("lang") || "zh";
+        function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key; }
+        function setLang(l) { lang = l; localStorage.setItem("lang", l); rerenderUI(); renderAuth(); }
+        function rerenderUI() {
+            document.title = me ? me.username + " - " + t("appName") : t("appName");
+            ["Chats", "Groups", "Friends", "Settings"].forEach(id => {
+                const el = $("nav" + id);
+                if (el) el.querySelector("span:last-child").textContent = t(id.toLowerCase());
+            });
+            renderConvList(); renderGroupList(); renderFriendList();
+            if (currentPage === "settings") renderSettings();
+        }
+        function renderAuth() {
+            const a = $("authScreen");
+            if (!a || a.style.display === "none") return;
+            a.querySelector("h1").textContent = t("appName");
+            a.querySelector(".sub").textContent = t("appSub");
+            a.querySelector('label[for="authUser"]').textContent = t("username");
+            a.querySelector('label[for="authPass"]').textContent = t("password");
+            a.querySelector(".btn-primary").textContent = t("register");
+            a.querySelector(".btn-outline").textContent = t("login");
+        }
+        // renderAuth() is called below, after $ is defined
+
         // ── User & Connection ──
         let me = null,                 // {uid, username, token} — current logged-in user
             ws = null,                 // WebSocket instance for IM push + commands
@@ -1054,12 +1159,13 @@
             $("pageFriends"),
             $("pageChat"),
             $("pageGroupChat"),
-            $("pageMe"),
+            $("pageSettings"),
         ];
+        renderAuth(); // set initial i18n text on auth screen
 
         function goTo(page) {
             allPages.forEach((p) => p.classList.remove("active"));
-            const t =
+            const pg =
                 page === "chats"
                     ? $("pageChats")
                     : page === "groups"
@@ -1070,20 +1176,21 @@
                                 ? $("pageChat")
                                 : page === "groupChat"
                                     ? $("pageGroupChat")
-                                    : $("pageMe");
-            if (t) t.classList.add("active");
+                                    : $("pageSettings");
+            if (pg) pg.classList.add("active");
             currentPage = page;
-            document.title = me ? me.username + " - myx-im" : "myx-im";
+            document.title = me ? me.username + " - " + t("appName") : t("appName");
             $("navChats").classList.toggle("active", page === "chats");
             $("navGroups").classList.toggle("active", page === "groups");
             $("navFriends").classList.toggle("active", page === "friends");
-            $("navMe").classList.toggle("active", page === "me");
+            $("navSettings").classList.toggle("active", page === "settings");
             if (page === "chats") loadConversations();
             if (page === "groups") loadGroupList();
             if (page === "friends") loadFriendList();
-            if (page === "me") {
+            if (page === "settings") {
                 $("meAvatar").textContent = me.username[0].toUpperCase();
                 $("meName").textContent = me.username;
+                renderSettings();
             }
             bottomNav.style.display = page === "chat" || page === "groupChat" ? "none" : "flex";
             setTimeout(() => {
@@ -1144,24 +1251,24 @@
             const u = $("authUser").value.trim(),
                 p = $("authPass").value;
             if (u.length < 3 || p.length < 6)
-                return setErr("Username \u22653, password \u22656 chars");
+                return setErr(t("userLen"));
             try {
                 const d = await api("/api/user/register", {
                     method: "POST",
                     body: JSON.stringify({ username: u, password: p }),
                 });
-                if (d.code === 200) setErr("Registered! Now login.");
-                else if (d.code === 409) setErr("User exists, try login.");
+                if (d.code === 200) setErr(t("registered"));
+                else if (d.code === 409) setErr(t("userExists"));
                 else setErr(d.msg);
             } catch (_) {
-                setErr("Cannot reach server");
+                setErr(t("cantReach"));
             }
         }
         async function doLogin() {
             setErr();
             const u = $("authUser").value.trim(),
                 p = $("authPass").value;
-            if (!u || !p) return setErr("Fill all fields");
+            if (!u || !p) return setErr(t("fillAll"));
             try {
                 const d = await api("/api/user/login", {
                     method: "POST",
@@ -1175,11 +1282,11 @@
                         token: d.data,
                     };
                 } catch (_) {
-                    return setErr("Bad token");
+                    return setErr(t("badToken"));
                 }
                 connectWS();
             } catch (_) {
-                setErr("Cannot reach server");
+                setErr(t("cantReach"));
             }
         }
 
@@ -1204,12 +1311,12 @@
                 if (p) p.classList.remove("active");
             });
             currentPage = null;
-            $("navMe").classList.remove("active");
+            $("navSettings").classList.remove("active");
         }
         async function doDeleteAccount() {
-            if (!confirm("Delete your account and all data? This cannot be undone.")) return;
+            if (!confirm(t("confirmDelete"))) return;
             const b = $("btnDeleteAccount");
-            b.textContent = "Deleting...";
+            b.textContent = t("deleting");
             b.disabled = true;
             try {
                 const d = await api("/api/user/delete", {
@@ -1217,16 +1324,16 @@
                     body: JSON.stringify({ token: me.token }),
                 });
                 if (d.code === 200) {
-                    alert("Account deleted.");
+                    alert(t("deleted"));
                     doLogout();
                 } else {
-                    alert("Failed: " + d.msg);
-                    b.textContent = "Delete Account";
+                    alert(t("deleteFailed") + d.msg);
+                    b.textContent = t("deleteAccount");
                     b.disabled = false;
                 }
             } catch (_) {
-                alert("Cannot reach server");
-                b.textContent = "Delete Account";
+                alert(t("cantReach"));
+                b.textContent = t("deleteAccount");
                 b.disabled = false;
             }
         }
@@ -1256,18 +1363,19 @@
                 $("myAvatar").textContent = me.username[0].toUpperCase();
                 $("myName").textContent = me.username;
                 loadConversations();
+                rerenderUI();
                 goTo("chats");
             };
             ws.onclose = () => {
                 ws = null;
                 const s = $("chStatus");
                 if (s) {
-                    s.textContent = "reconnecting...";
+                    s.textContent = t("reconnecting");
                     s.style.color = "var(--danger)";
                 }
                 const gs = $("gchStatus");
                 if (gs) {
-                    gs.textContent = "reconnecting...";
+                    gs.textContent = t("reconnecting");
                     gs.style.color = "var(--danger)";
                 }
                 if (!me) return;
@@ -1285,7 +1393,7 @@
                     else if (m.cmd === "group_delivery_update") handleGroupDeliveryUpdate(m);
                     else if (m.cmd === "typing") handleTyping(m);
                     else if (m.cmd === "kicked") {
-                        $("authErr").textContent = "Logged in from another device";
+                        $("authErr").textContent = t("loggedFromOther");
                         doLogout();
                     }
                 } catch (_) { }
@@ -1312,7 +1420,7 @@
                 // Mark peer's messages as seen since we're viewing this chat
                 if (ws && ws.readyState === 1)
                     ws.send(JSON.stringify({ cmd: "mark_seen", seq: 0, data: { to_uid: p } }));
-                $("chStatus").textContent = "online";
+                $("chStatus").textContent = t("online");
                 $("chStatus").style.color = "var(--accent)";
             } else {
                 unreadCounts[p] = (unreadCounts[p] || 0) + 1;
@@ -1363,12 +1471,12 @@
                 msgById[m.data.msg_id] = e.el;
             }
             if (m.data && m.data.delivered) {
-                if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
-                $("chStatus").textContent = "online";
+                if (s) s.innerHTML = '<span class="undelivered">\u25F7 ' + t("sent") + '</span>';
+                $("chStatus").textContent = t("online");
                 $("chStatus").style.color = "var(--accent)";
             } else {
-                if (s) s.innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
-                $("chStatus").textContent = "offline";
+                if (s) s.innerHTML = '<span class="undelivered">\u25F7 ' + t("sent") + '</span>';
+                $("chStatus").textContent = t("offline");
                 $("chStatus").style.color = "var(--text2)";
             }
             delete pendingMsgs[m.seq];
@@ -1381,7 +1489,7 @@
                 if (!el) continue;
                 const s = el.querySelector(".msg-status");
                 if (s) {
-                    s.innerHTML = '<span class="delivered">\u2713 Read</span>';
+                    s.innerHTML = '<span class="delivered">\u2713 ' + t("read") + '</span>';
                     saveMsgStatus(mid, "read");
                 }
             }
@@ -1412,7 +1520,7 @@
                 if (!el) { console.log('[grpDelUp] no DOM for msg_id=', s.msg_id, 'msgById keys=', Object.keys(msgById).slice(0, 5)); continue; }
                 const st = el.querySelector(".msg-status");
                 if (st) {
-                    st.innerHTML = '<span class="delivered">\u2713 Read ' + s.read + '/' + s.total + '</span>';
+                    st.innerHTML = '<span class="delivered">\u2713 ' + t("read") + ' ' + s.read + '/' + s.total + '</span>';
                     console.log('[grpDelUp] updated msg_id=', s.msg_id, '->', s.read, '/', s.total);
                 }
             }
@@ -1421,7 +1529,7 @@
             const f = m.data && m.data.from_uid;
             if (!f || activePeer !== f || currentPage !== "chat") return;
             const h = $("typingHint");
-            h.textContent = ((peers[f] && peers[f].username) || "?") + " is typing...";
+            h.textContent = ((peers[f] && peers[f].username) || "?") + t("isTyping");
             h.style.display = "block";
             clearTimeout(typingTimeout);
             typingTimeout = setTimeout(() => {
@@ -1460,7 +1568,7 @@
             el.replaceChildren();
             if (convCache.length === 0) {
                 const d = tpl("EmptyState");
-                d.innerHTML = "No conversations yet.<br>Search for users to start chatting.";
+                d.innerHTML = t("noConvs");
                 el.appendChild(d);
                 return;
             }
@@ -1479,7 +1587,7 @@
                 item.querySelector(".li-last").textContent = c.last_msg;
                 item.querySelector(".li-time").textContent = new Date(
                     c.last_time,
-                ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                ).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en-US", { hour: "2-digit", minute: "2-digit" });
                 item.onclick = () => openChat(c.peer_uid, c.peer_name);
                 el.appendChild(item);
             }
@@ -1502,9 +1610,11 @@
             const lm = $("loadMore");
             $("msgList").replaceChildren(lm);
             lm.style.display = "block";
-            $("loadMore").textContent = "Load earlier messages";
+            $("loadMore").textContent = t("loadEarlier");
             $("loadMore").style.cursor = "pointer";
             $("msgInput").value = "";
+            $("msgInput").placeholder = t("typeMsg");
+            $("btnSend").textContent = t("send");
             $("typingHint").style.display = "none";
             clearTimeout(typingTimeout);
             goTo("chat");
@@ -1534,21 +1644,21 @@
             const d = await api(url),
                 lm = $("loadMore");
             if (d.code !== 200 || !d.data) {
-                lm.textContent = "No messages yet";
+                lm.textContent = t("noMsgsYet");
                 lm.style.cursor = "default";
                 return;
             }
             const items = d.data;
             if (items.length === 0) {
-                lm.textContent = "No earlier messages";
+                lm.textContent = t("noEarlier");
                 lm.style.cursor = "default";
                 return;
             }
             if (items.length < PAGE_SIZE) {
-                lm.textContent = "All messages loaded";
+                lm.textContent = t("allLoaded");
                 lm.style.cursor = "default";
             } else {
-                lm.textContent = "Load earlier messages";
+                lm.textContent = t("loadEarlier");
                 lm.style.cursor = "pointer";
             }
             for (let i = 0; i < items.length; i++) messages.unshift(items[i]);
@@ -1567,21 +1677,21 @@
             const nm = isMine
                 ? me.username
                 : (peers[m.from_uid] && peers[m.from_uid].username) || "?";
-            const t = new Date(Number(m.send_time)).toLocaleTimeString([], {
+            const time = new Date(Number(m.send_time)).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
             });
             if (!s && isMine && m.msg_id) {
                 const sv = getMsgStatus(m.msg_id);
-                if (sv === "read") s = '<span class="delivered">\u2713 Read</span>';
-                else if (m.seen) s = '<span class="delivered">\u2713 Read</span>';
-                else s = '<span class="undelivered">\u25F7 Sent</span>';
+                if (sv === "read") s = '<span class="delivered">\u2713 ' + t("read") + '</span>';
+                else if (m.seen) s = '<span class="delivered">\u2713 ' + t("read") + '</span>';
+                else s = '<span class="undelivered">\u25F7 ' + t("sent") + '</span>';
             }
             const div = tpl("MsgRow");
             if (isMine) div.classList.add("mine");
             div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
             div.querySelector(".msg-bubble").textContent = m.content;
-            div.querySelector(".msg-time").textContent = t;
+            div.querySelector(".msg-time").textContent = time;
             const status = div.querySelector(".msg-status");
             if (s) status.innerHTML = s;
             ml.appendChild(div);
@@ -1594,7 +1704,7 @@
             const b = $("btnSend"),
                 c = $("msgInput").value.trim();
             if (!activePeer) {
-                b.textContent = "Open a chat first";
+                b.textContent = t("openChatFirst");
                 b.style.background = "var(--danger)";
                 setTimeout(() => {
                     b.textContent = "Send";
@@ -1604,11 +1714,11 @@
             }
             if (!c) return;
             if (!ws || ws.readyState !== 1) {
-                b.textContent = "Reconnecting...";
+                b.textContent = t("reconnecting");
                 b.style.background = "var(--danger)";
                 connectWS();
                 setTimeout(() => {
-                    b.textContent = "Send";
+                    b.textContent = t("send");
                     b.style.background = "var(--primary)";
                 }, 2000);
                 return;
@@ -1625,7 +1735,7 @@
                 },
                 el = appendMsg(
                     msg,
-                    '<span class="pending">\u25F7 Sending...</span>',
+                    '<span class="pending">\u25F7 ' + t("sending") + '</span>',
                     $("msgList"),
                 );
             pendingMsgs[seq] = { el, msg };
@@ -1661,13 +1771,16 @@
             if (groupUnreadCounts[gid]) delete groupUnreadCounts[gid];
             if (!peers[gid]) peers[gid] = { username: gn };
             $("gchName").textContent = gn;
+            $("gchStatus").textContent = t("group");
             groupMessages = [];
             const glm = $("gloadMore");
             $("gmsgList").replaceChildren(glm);
             glm.style.display = "block";
-            $("gloadMore").textContent = "Load earlier messages";
+            $("gloadMore").textContent = t("loadEarlier");
             $("gloadMore").style.cursor = "pointer";
             $("gmsgInput").value = "";
+            $("gmsgInput").placeholder = t("typeMsg");
+            $("gbtnSend").textContent = t("send");
             goTo("groupChat");
             loadGroupHistory();
         }
@@ -1692,21 +1805,21 @@
             const d = await api(url),
                 lm = $("gloadMore");
             if (d.code !== 200 || !d.data) {
-                lm.textContent = "No messages";
+                lm.textContent = t("noMsgs");
                 lm.style.cursor = "default";
                 return;
             }
             const items = d.data;
             if (items.length === 0) {
-                lm.textContent = "No earlier messages";
+                lm.textContent = t("noEarlier");
                 lm.style.cursor = "default";
                 return;
             }
             if (items.length < PAGE_SIZE) {
-                lm.textContent = "All messages loaded";
+                lm.textContent = t("allLoaded");
                 lm.style.cursor = "default";
             } else {
-                lm.textContent = "Load earlier messages";
+                lm.textContent = t("loadEarlier");
                 lm.style.cursor = "pointer";
             }
             for (let i = 0; i < items.length; i++) groupMessages.unshift(items[i]);
@@ -1722,7 +1835,7 @@
         function appendGroupMsg(m, ml) {
             const isMine = m.from_uid === me.uid;
             const nm = m.from_name || "?";
-            const t = new Date(Number(m.send_time)).toLocaleTimeString([], {
+            const time = new Date(Number(m.send_time)).toLocaleTimeString(lang === "zh" ? "zh-CN" : "en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
             });
@@ -1734,14 +1847,14 @@
             sender.textContent = isMine ? "" : nm;
             const bubble = div.querySelector(".msg-bubble");
             bubble.textContent = m.content;
-            div.querySelector(".msg-time").textContent = t;
+            div.querySelector(".msg-time").textContent = time;
             if (isMine && m.msg_id) {
                 // Show read status from history (read_count/total), or default to Sent
                 if (m.read_count > 0 && m.total > 0) {
                     div.querySelector(".msg-status").innerHTML =
-                        '<span class="delivered">\u2713 Read ' + m.read_count + '/' + m.total + '</span>';
+                        '<span class="delivered">\u2713 ' + t("read") + ' ' + m.read_count + '/' + m.total + '</span>';
                 } else {
-                    div.querySelector(".msg-status").innerHTML = '<span class="undelivered">\u25F7 Sent</span>';
+                    div.querySelector(".msg-status").innerHTML = '<span class="undelivered">\u25F7 ' + t("sent") + '</span>';
                 }
                 msgById[m.msg_id] = div;
             }
@@ -1808,7 +1921,7 @@
             el.replaceChildren();
             if (groupCache.length === 0) {
                 const d = tpl("EmptyState");
-                d.innerHTML = "No groups yet.<br>Create or join a group to start.";
+                d.innerHTML = t("noGroups");
                 el.appendChild(d);
                 return;
             }
@@ -1839,7 +1952,7 @@
             el.replaceChildren();
             if (friendCache.length === 0) {
                 const d = tpl("EmptyState");
-                d.innerHTML = "No friends yet.<br>Search users and add them as friends.";
+                d.innerHTML = t("noFriends");
                 el.appendChild(d);
                 return;
             }
@@ -1881,13 +1994,35 @@
                 $("groupSearchResults").replaceChildren();
             }
         }
+        function renderSettings() {
+            const page = $("pageSettings");
+            page.querySelector(".page-header .title").textContent = t("profile");
+            $("lblAppearance").textContent = t("appearance");
+            $("btnTheme").textContent = t("themeToggle");
+            $("btnTheme").onclick = toggleTheme;
+            $("lblLanguage").textContent = t("language");
+            $("btnLangZh").textContent = t("chinese");
+            $("btnLangEn").textContent = t("english");
+            $("btnLangZh").onclick = () => { if (lang !== "zh") setLang("zh"); };
+            $("btnLangEn").onclick = () => { if (lang !== "en") setLang("en"); };
+            // Highlight active language
+            $("btnLangZh").style.background = lang === "zh" ? "var(--primary)" : "";
+            $("btnLangZh").style.color = lang === "zh" ? "#fff" : "";
+            $("btnLangEn").style.background = lang === "en" ? "var(--primary)" : "";
+            $("btnLangEn").style.color = lang === "en" ? "#fff" : "";
+            $("lblAccount").textContent = t("account");
+            $("btnLogout").textContent = t("logout");
+            $("btnLogout").onclick = doLogout;
+            $("btnDeleteAccount").textContent = t("deleteAccount");
+            $("btnDeleteAccount").onclick = doDeleteAccount;
+        }
         function closeModal() {
             $("modalOverlay").classList.remove("show");
         }
         async function doCreateGroup() {
             const n = $("groupName").value.trim();
             if (!n) {
-                $("groupErr").textContent = "Enter a group name";
+                $("groupErr").textContent = t("groupNameRequired");
                 return;
             }
             const d = await api("/api/group/create", {
