@@ -619,6 +619,11 @@
 
         #bottomNav button .icon {
             font-size: 20px;
+            filter: grayscale(1);
+        }
+
+        #bottomNav button.active .icon {
+            filter: none;
         }
 
         #bottomNav button.active {
@@ -1002,7 +1007,7 @@
             <div class="sr-avatar"></div>
             <div style="flex:1"></div>
             <button class="btn-add-friend"
-                style="padding:4px 10px;font-size:11px;border:1px solid var(--primary);color:var(--primary);border-radius:var(--radius-sm)"></button>
+                style="padding:4px 10px;font-size:11px;border:1px solid var(--text2);color:var(--text2);border-radius:var(--radius-sm)"></button>
         </div>
     </template>
     <template id="tplMsgRow">
@@ -1297,6 +1302,11 @@
         }
         function setErr(m) {
             $("authErr").textContent = m || "";
+            $("authErr").style.color = m ? "var(--danger)" : "";
+        }
+        function setOk(m) {
+            $("authErr").textContent = m || "";
+            $("authErr").style.color = m ? "var(--accent)" : "";
         }
 
         async function doRegister() {
@@ -1310,7 +1320,7 @@
                     method: "POST",
                     body: JSON.stringify({ username: u, password: p }),
                 });
-                if (d.code === 200) setErr(t("registered"));
+                if (d.code === 200) setOk(t("registered"));
                 else if (d.code === 409) setErr(t("userExists"));
                 else setErr(d.msg);
             } catch (_) {
@@ -1327,7 +1337,7 @@
                     method: "POST",
                     body: JSON.stringify({ username: u, password: p }),
                 });
-                if (d.code !== 200) return setErr(d.msg);
+                if (d.code !== 200) return setErr(d.msg || t("badToken"));
                 try {
                     me = {
                         uid: JSON.parse(atob(d.data.split(".")[1])).user_id,
@@ -1446,7 +1456,7 @@
                     else if (m.cmd === "group_delivery_update") handleGroupDeliveryUpdate(m);
                     else if (m.cmd === "typing") handleTyping(m);
                     else if (m.cmd === "kicked") {
-                        $("authErr").textContent = t("loggedFromOther");
+                        setErr(t("loggedFromOther"));
                         doLogout();
                     }
                 } catch (_) { }
@@ -2028,6 +2038,7 @@
             if (d.code === 200) {
                 if (btn) { btn.textContent = t("friendAdded"); btn.disabled = true; }
                 loadFriendList();
+                closeModal();
             } else {
                 $("addFriendErr").textContent = d.msg || t("joinFailed");
             }
