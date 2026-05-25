@@ -1010,23 +1010,28 @@
     </template>
 
     <script>
-        let me = null,
-            ws = null,
-            peers = {},
-            messages = [],
-            groupMessages = [];
-        let activePeer = null,
-            activeGroup = null,
-            convCache = [],
-            unreadCounts = {},
-            groupUnreadCounts = {};
-        let pendingMsgs = {},
-            msgById = {},
-            typingTimer = null,
-            typingTimeout = null;
-        let groupCache = [],
-            friendCache = [],
-            currentPage = null;
+        // ── User & Connection ──
+        let me = null,                 // {uid, username, token} — current logged-in user
+            ws = null,                 // WebSocket instance for IM push + commands
+        // ── Peer / Chat state ──
+            peers = {},                // {uid: {username}} — cached peer usernames
+            messages = [],             // currently loaded private chat messages
+            groupMessages = [];        // currently loaded group chat messages
+        let activePeer = null,         // UUID of the private chat currently being viewed
+            activeGroup = null,        // UUID of the group chat currently being viewed
+            convCache = [],            // cached conversation list from /api/conversations
+            unreadCounts = {},         // {peer_uid: count} — private chat unread badges
+            groupUnreadCounts = {};    // {group_id: count} — group chat unread badges
+        // ── Message tracking ──
+        let pendingMsgs = {},          // {seq: {el, msg}} — sent messages awaiting ACK
+            msgById = {},              // {msg_id: DOM element} — for status updates (✓ Read)
+        // ── Typing indicator ──
+            typingTimer = null,        // setTimeout handle for debounced sendTyping
+            typingTimeout = null;      // setTimeout handle for "is typing..." fade-out
+        // ── Lists & navigation ──
+        let groupCache = [],           // cached group list from /api/group/list
+            friendCache = [],          // cached friend list from /api/friend/list
+            currentPage = null;        // 'chats' | 'groups' | 'friends' | 'chat' | 'groupChat' | 'me'
         const PAGE_SIZE = 40;
         const $ = (id) => document.getElementById(id);
         const authScreen = $("authScreen"),
