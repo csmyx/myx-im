@@ -515,6 +515,10 @@
             margin-top: 2px;
         }
 
+        .msg-row.mine .msg-time {
+            text-align: right;
+        }
+
         .msg-status {
             font-size: 10px;
             margin-top: 2px;
@@ -802,12 +806,22 @@
                     <button onclick="toggleTheme()" title="Toggle theme">🌓</button>
                 </div>
             </div>
+            <div class="list-area" id="convList"></div>
+        </div>
+
+        <div class="page" id="pageFriends">
+            <div class="page-header">
+                <button class="btn-back" onclick="goTo('chats')">←</button>
+                <div class="info">
+                    <div class="title">Friends</div>
+                </div>
+            </div>
             <div class="search-wrap">
                 <input id="searchInput" placeholder="Search users..." autocomplete="off" oninput="onSearchInput()"
                     onfocus="onSearchInput()" />
                 <div class="search-results" id="searchResults"></div>
             </div>
-            <div class="list-area" id="convList"></div>
+            <div class="list-area" id="friendList"></div>
         </div>
 
         <div class="page" id="pageGroups">
@@ -822,16 +836,6 @@
                 </div>
             </div>
             <div class="list-area" id="groupList"></div>
-        </div>
-
-        <div class="page" id="pageFriends">
-            <div class="page-header">
-                <button class="btn-back" onclick="goTo('chats')">←</button>
-                <div class="info">
-                    <div class="title">Friends</div>
-                </div>
-            </div>
-            <div class="list-area" id="friendList"></div>
         </div>
 
         <div class="page" id="pageChat">
@@ -923,11 +927,11 @@
             <button id="navChats" class="active" onclick="goTo('chats')">
                 <span class="icon">💬</span><span>Chats</span>
             </button>
-            <button id="navGroups" onclick="goTo('groups')">
-                <span class="icon">👥</span><span>Groups</span>
-            </button>
             <button id="navFriends" onclick="goTo('friends')">
                 <span class="icon">👤</span><span>Friends</span>
+            </button>
+            <button id="navGroups" onclick="goTo('groups')">
+                <span class="icon">👥</span><span>Groups</span>
             </button>
             <button id="navSettings" onclick="goTo('settings')"><span
                     class="icon">⚙️</span><span>Settings</span></button>
@@ -1042,6 +1046,7 @@
                 online: "在线", offline: "离线", reconnecting: "重连中...",
                 sending: "发送中...", sent: "已发送", delivered: "已读", read: "已读",
                 membersBy: "个成员，群主",
+                members: "个成员",
                 profile: "个人信息", language: "语言",
                 appearance: "外观", account: "账号",
                 chinese: "中文", english: "English",
@@ -1083,6 +1088,7 @@
                 online: "online", offline: "offline", reconnecting: "reconnecting...",
                 sending: "Sending...", sent: "Sent", delivered: "Read", read: "Read",
                 membersBy: " members, by ",
+                members: " members",
                 profile: "Profile", language: "Language",
                 chinese: "中文", english: "English",
                 appearance: "Appearance", account: "Account",
@@ -2069,22 +2075,22 @@
             if (!q) { el.replaceChildren(); el.classList.remove("show"); return }
             groupSearchTimer = setTimeout(async () => {
                 const d = await api("/api/group/search?token=" + encodeURIComponent(me.token) + "&q=" + encodeURIComponent(q) + "&limit=10");
-                if (d.code !== 200 || !d.data) { err.textContent = d.msg || "Search failed"; return }
+                if (d.code !== 200 || !d.data) { err.textContent = d.msg || t("searchFailed"); return }
                 err.textContent = "";
                 el.replaceChildren();
                 for (const g of d.data) {
                     const item = tpl("SearchItem");
                     item.querySelector(".sr-avatar").textContent = g.name[0].toUpperCase();
                     const info = item.querySelector("div:nth-of-type(2)");
-                    info.textContent = g.name + " (" + g.member_count + " members)";
+                    info.textContent = g.name + " (" + g.member_count + t("members") + ")";
                     const owner = document.createElement("small");
-                    owner.textContent = " by " + (g.owner_name || "?");
+                    owner.textContent = t("membersBy") + (g.owner_name || "?");
                     owner.style.color = "var(--text2)";
                     info.appendChild(owner);
                     item.onclick = async () => {
                         const r = await api("/api/group/join", { method: "POST", body: JSON.stringify({ token: me.token, group_id: g.group_id }) });
                         if (r.code === 200) { closeModal(); loadGroupList() }
-                        else err.textContent = r.msg || "Join failed";
+                        else err.textContent = r.msg || t("joinFailed");
                     };
                     el.appendChild(item);
                 }
