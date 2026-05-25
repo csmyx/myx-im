@@ -492,8 +492,7 @@
         }
 
         .msg-row.mine .m-avatar {
-            background: var(--primary);
-            color: #fff;
+            display: none;
         }
 
         .msg-bubble {
@@ -532,6 +531,17 @@
 
         .msg-status .undelivered {
             color: #e5c07b;
+        }
+
+        .msg-sender {
+            font-size: 11px;
+            color: var(--text2);
+            margin-bottom: 2px;
+            padding-left: 4px;
+        }
+
+        .msg-row.mine .msg-sender {
+            display: none;
         }
 
         .typing-indicator {
@@ -987,6 +997,7 @@
         <div class="msg-row">
             <div class="m-avatar"></div>
             <div>
+                <div class="msg-sender"></div>
                 <div class="msg-bubble"></div>
                 <div class="msg-time"></div>
                 <div class="msg-status"></div>
@@ -998,6 +1009,7 @@
         <div class="msg-row">
             <div class="m-avatar"></div>
             <div>
+                <div class="msg-sender"></div>
                 <div class="msg-bubble"></div>
                 <div class="msg-time"></div>
                 <div class="msg-status"></div>
@@ -1717,16 +1729,11 @@
             const div = tpl("GroupMsgRow");
             if (isMine) div.classList.add("mine");
             div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
+            // Show sender name above bubble for other people's messages
+            const sender = div.querySelector(".msg-sender");
+            sender.textContent = isMine ? "" : nm;
             const bubble = div.querySelector(".msg-bubble");
-            if (isMine) {
-                bubble.textContent = m.content;
-            } else {
-                const b = document.createElement("b");
-                b.textContent = nm;
-                bubble.appendChild(b);
-                bubble.appendChild(document.createElement("br"));
-                bubble.appendChild(document.createTextNode(m.content));
-            }
+            bubble.textContent = m.content;
             div.querySelector(".msg-time").textContent = t;
             if (isMine && m.msg_id) {
                 // Show read status from history (read_count/total), or default to Sent
