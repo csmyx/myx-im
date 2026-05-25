@@ -989,8 +989,7 @@
             <div class="sr-avatar"></div>
             <div style="flex:1"></div>
             <button class="btn-add-friend"
-                style="padding:4px 10px;font-size:11px;border:1px solid var(--primary);color:var(--primary);border-radius:var(--radius-sm)">+
-                Add</button>
+                style="padding:4px 10px;font-size:11px;border:1px solid var(--primary);color:var(--primary);border-radius:var(--radius-sm)"></button>
         </div>
     </template>
     <template id="tplMsgRow">
@@ -2082,11 +2081,14 @@
                     const item = tpl("SearchItem");
                     item.querySelector(".sr-avatar").textContent = g.name[0].toUpperCase();
                     const info = item.querySelector("div:nth-of-type(2)");
-                    info.textContent = g.name + " (" + g.member_count + t("members") + ")";
-                    const owner = document.createElement("small");
-                    owner.textContent = t("membersBy") + (g.owner_name || "?");
-                    owner.style.color = "var(--text2)";
-                    info.appendChild(owner);
+                    info.textContent = g.name;
+                    const desc = document.createElement("small");
+                    desc.textContent = g.member_count + t("membersBy") + (g.owner_name || "?");
+                    desc.style.color = "var(--text2)";
+                    info.appendChild(desc);
+                    // Hide add-friend button in group search
+                    const addBtn = item.querySelector(".btn-add-friend");
+                    if (addBtn) addBtn.style.display = "none";
                     item.onclick = async () => {
                         const r = await api("/api/group/join", { method: "POST", body: JSON.stringify({ token: me.token, group_id: g.group_id }) });
                         if (r.code === 200) { closeModal(); loadGroupList() }
@@ -2123,6 +2125,7 @@
                     item.querySelector("div:nth-of-type(2)").textContent = u.username;
                     item.querySelector("div:nth-of-type(2)").onclick = () => startChat(u.id, u.username);
                     const btn = item.querySelector(".btn-add-friend");
+                    btn.textContent = t("addFriend");
                     btn.onclick = (e) => { e.stopPropagation(); addFriend(u.id, u.username) };
                     el.appendChild(item);
                 }
