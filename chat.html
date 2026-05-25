@@ -1039,6 +1039,8 @@
     </template>
 
     <script>
+        // Prevent back button from exiting the app on first press
+        history.pushState({ page: "init" }, "");
         // ── i18n ──
         const I18N = {
             zh: {
@@ -1074,6 +1076,7 @@
                 deleted: "账号已删除。", deleteFailed: "删除失败：",
                 openChatFirst: "请先打开一个聊天",
                 loggedFromOther: "在其他设备登录",
+                confirmLogout: "确定退出登录？",
                 isTyping: "正在输入...",
                 group: "群组",
                 createGroup: "创建群聊", groupName: "群聊名称", groupNameRequired: "请输入群聊名称",
@@ -1117,6 +1120,7 @@
                 deleted: "Account deleted.", deleteFailed: "Failed: ",
                 openChatFirst: "Open a chat first",
                 loggedFromOther: "Logged in from another device",
+                confirmLogout: "Exit the app?",
                 isTyping: " is typing...",
                 group: "group",
                 createGroup: "Create Group", groupName: "Group Name", groupNameRequired: "Enter a group name",
@@ -1236,6 +1240,10 @@
                                     ? $("pageGroupChat")
                                     : $("pageSettings");
             if (pg) pg.classList.add("active");
+            // Track navigation for back-button support
+            if (page !== "chats" && currentPage === "chats") {
+                history.pushState({ page: "chats" }, "");
+            }
             currentPage = page;
             document.title = me ? me.username + " - " + t("appName") : t("appName");
             $("navChats").classList.toggle("active", page === "chats");
@@ -2248,6 +2256,14 @@
         }
         document.addEventListener("click", (e) => {
             if (!e.target.closest(".search-wrap")) $("searchResults").classList.remove("show");
+        });
+        // Android back-button / gesture support: navigate back, confirm logout at root
+        window.addEventListener("popstate", () => {
+            history.pushState({ page: "chats" }, ""); // keep state alive for next back press
+            if (currentPage === "chat") { closeChat(); return; }
+            if (currentPage === "groupChat") { closeGroupChat(); return; }
+            if (currentPage !== "chats") { goTo("chats"); return; }
+            if (confirm(t("confirmLogout"))) doLogout();
         });
         if (window.visualViewport) {
             window.visualViewport.addEventListener("resize", () => {
