@@ -806,6 +806,11 @@
                     <button onclick="toggleTheme()" title="Toggle theme">🌓</button>
                 </div>
             </div>
+            <div class="search-wrap">
+                <input id="searchInput" placeholder="Search users..." autocomplete="off" oninput="onSearchInput()"
+                    onfocus="onSearchInput()" />
+                <div class="search-results" id="searchResults"></div>
+            </div>
             <div class="list-area" id="convList"></div>
         </div>
 
@@ -815,11 +820,9 @@
                 <div class="info">
                     <div class="title">Friends</div>
                 </div>
-            </div>
-            <div class="search-wrap">
-                <input id="searchInput" placeholder="Search users..." autocomplete="off" oninput="onSearchInput()"
-                    onfocus="onSearchInput()" />
-                <div class="search-results" id="searchResults"></div>
+                <div class="header-actions">
+                    <button onclick="openAddFriend()">+ Add</button>
+                </div>
             </div>
             <div class="list-area" id="friendList"></div>
         </div>
@@ -939,7 +942,7 @@
     </div>
 
     <div class="modal-overlay" id="modalOverlay" onclick="if (event.target === this) closeModal();">
-        <div class="modal" id="modalCreateGroup">
+        <div class="modal" id="modalCreateGroup" style="display:none">
             <h3>Create Group</h3>
             <label for="groupName">Group Name</label><input id="groupName" placeholder="e.g. Dev Team" maxlength="50" />
             <div class="err" id="groupErr"></div>
@@ -954,6 +957,16 @@
                 autocomplete="off" oninput="onGroupSearch()" />
             <div class="err" id="joinGroupErr"></div>
             <div class="search-results" id="groupSearchResults" style="position:static;max-height:150px"></div>
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+        <div class="modal" id="modalAddFriend" style="display: none">
+            <h3>Add Friend</h3>
+            <label for="friendSearch">Search by username</label><input id="friendSearch" placeholder="Type username..."
+                autocomplete="off" oninput="onFriendSearch()" />
+            <div class="err" id="addFriendErr"></div>
+            <div class="search-results" id="friendSearchResults" style="position:static;max-height:150px"></div>
             <div class="btn-row">
                 <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
             </div>
@@ -1062,6 +1075,7 @@
                 cancel: "取消",
                 joinGroup: "加入群聊", searchByName: "按名称搜索",
                 addFriend: "+ 添加",
+                addFriendTitle: "添加好友", searchByUsername: "按用户名搜索",
                 searchFailed: "搜索失败", joinFailed: "加入失败",
                 friendAdded: "✓ 已添加",
             },
@@ -1104,6 +1118,7 @@
                 cancel: "Cancel",
                 joinGroup: "Join Group", searchByName: "Search by name",
                 addFriend: "+ Add",
+                addFriendTitle: "Add Friend", searchByUsername: "Search by username",
                 searchFailed: "Search failed", joinFailed: "Join failed",
                 friendAdded: "✓ Friend",
             }
@@ -1123,6 +1138,9 @@
             if (gh) gh.textContent = t("groupsTitle");
             const fh = document.querySelector("#pageFriends .page-header .title");
             if (fh) fh.textContent = t("friendsTitle");
+            // Friends header button
+            const fb = document.querySelector("#pageFriends .header-actions button");
+            if (fb) fb.textContent = t("addFriend");
             const gb = document.querySelectorAll("#pageGroups .header-actions button");
             if (gb[0]) { gb[0].textContent = t("create"); gb[0].innerHTML = t("create"); }
             if (gb[1]) { gb[1].textContent = t("join"); gb[1].innerHTML = t("join"); }
@@ -1140,6 +1158,13 @@
             const mjb = document.querySelectorAll("#modalJoinGroup .btn-row button");
             if (mjb[0]) mjb[0].textContent = t("cancel");
             $("groupName").placeholder = t("groupName");
+            // Add friend modal
+            const maf = document.querySelector("#modalAddFriend h3");
+            if (maf) maf.textContent = t("addFriendTitle");
+            document.querySelector('#modalAddFriend label[for="friendSearch"]').textContent = t("searchByUsername");
+            $("friendSearch").placeholder = t("searchByUsername");
+            const mfb = document.querySelectorAll("#modalAddFriend .btn-row button");
+            if (mfb[0]) mfb[0].textContent = t("cancel");
             renderConvList(); renderGroupList(); renderFriendList();
             if (currentPage === "settings") renderSettings();
         }
@@ -1994,15 +2019,17 @@
                 el.appendChild(item);
             }
         }
-        async function addFriend(uid, name) {
+        async function addFriend(uid, name, btn) {
             if (!me) return;
             const d = await api("/api/friend/add", {
                 method: "POST",
                 body: JSON.stringify({ token: me.token, peer_uid: uid }),
             });
             if (d.code === 200) {
-                const btn = document.getElementById("btnAddFriend");
-                if (btn) { btn.textContent = "✓ Friend"; btn.disabled = true }
+                if (btn) { btn.textContent = t("friendAdded"); btn.disabled = true; }
+                loadFriendList();
+            } else {
+                $("addFriendErr").textContent = d.msg || t("joinFailed");
             }
         }
 
@@ -2046,6 +2073,50 @@
         }
         function closeModal() {
             $("modalOverlay").classList.remove("show");
+            $("modalCreateGroup").style.display = "none";
+            $("modalJoinGroup").style.display = "none";
+            $("modalAddFriend").style.display = "none";
+        }
+        function openAddFriend() {
+            $("modalOverlay").classList.add("show");
+            $("modalCreateGroup").style.display = "none";
+            $("modalJoinGroup").style.display = "none";
+            $("modalAddFriend").style.display = "block";
+            $("friendSearch").focus();
+            $("friendSearch").value = "";
+            $("friendSearchResults").replaceChildren();
+            $("addFriendErr").textContent = "";
+        }
+        let friendSearchTimer;
+        async function onFriendSearch() {
+            clearTimeout(friendSearchTimer);
+            const q = $("friendSearch").value.trim();
+            const el = $("friendSearchResults");
+            const err = $("addFriendErr");
+            if (!q) { el.replaceChildren(); el.classList.remove("show"); return; }
+            friendSearchTimer = setTimeout(async () => {
+                const d = await api("/api/user/search?token=" + encodeURIComponent(me.token) + "&q=" + encodeURIComponent(q) + "&limit=8");
+                if (d.code !== 200 || !d.data) { err.textContent = d.msg || t("searchFailed"); return; }
+                err.textContent = "";
+                el.replaceChildren();
+                for (const u of d.data) {
+                    const item = tpl("SearchItem");
+                    item.querySelector(".sr-avatar").textContent = u.username[0].toUpperCase();
+                    item.querySelector("div:nth-of-type(2)").textContent = u.username;
+                    const btn = item.querySelector(".btn-add-friend");
+                    const isFriend = friendCache.some(f => f.friend_id === u.id);
+                    if (isFriend) {
+                        btn.textContent = t("friendAdded");
+                        btn.disabled = true;
+                    } else {
+                        btn.textContent = t("addFriend");
+                        btn.disabled = false;
+                        btn.onclick = (e) => { e.stopPropagation(); addFriend(u.id, u.username, btn); };
+                    }
+                    el.appendChild(item);
+                }
+                el.classList.add("show");
+            }, 300);
         }
         async function doCreateGroup() {
             const n = $("groupName").value.trim();
@@ -2082,18 +2153,36 @@
                     item.querySelector(".sr-avatar").textContent = g.name[0].toUpperCase();
                     const info = item.querySelector("div:nth-of-type(2)");
                     info.textContent = g.name;
-                    const desc = document.createElement("small");
+                    const desc = document.createElement("div");
+                    desc.style.cssText = "font-size:12px;color:var(--text2);margin-top:2px";
                     desc.textContent = g.member_count + t("membersBy") + (g.owner_name || "?");
-                    desc.style.color = "var(--text2)";
                     info.appendChild(desc);
-                    // Hide add-friend button in group search
-                    const addBtn = item.querySelector(".btn-add-friend");
-                    if (addBtn) addBtn.style.display = "none";
-                    item.onclick = async () => {
-                        const r = await api("/api/group/join", { method: "POST", body: JSON.stringify({ token: me.token, group_id: g.group_id }) });
-                        if (r.code === 200) { closeModal(); loadGroupList() }
-                        else err.textContent = r.msg || t("joinFailed");
-                    };
+                    // Repurpose button for join action
+                    const joinBtn = item.querySelector(".btn-add-friend");
+                    const alreadyMember = groupCache.some(gr => gr.group_id === g.group_id);
+                    if (joinBtn) {
+                        if (alreadyMember) {
+                            joinBtn.textContent = t("friendAdded");
+                            joinBtn.disabled = true;
+                        } else {
+                            joinBtn.textContent = t("join");
+                            joinBtn.onclick = async (e) => {
+                                e.stopPropagation();
+                                const r = await api("/api/group/join", { method: "POST", body: JSON.stringify({ token: me.token, group_id: g.group_id }) });
+                                if (r.code === 200) { closeModal(); loadGroupList() }
+                                else { err.textContent = r.msg || t("joinFailed"); joinBtn.textContent = t("join"); }
+                            };
+                        }
+                    }
+                    if (alreadyMember) {
+                        item.onclick = null;
+                    } else {
+                        item.onclick = async () => {
+                            const r = await api("/api/group/join", { method: "POST", body: JSON.stringify({ token: me.token, group_id: g.group_id }) });
+                            if (r.code === 200) { closeModal(); loadGroupList() }
+                            else err.textContent = r.msg || t("joinFailed");
+                        };
+                    }
                     el.appendChild(item);
                 }
                 el.classList.add("show");
@@ -2108,29 +2197,25 @@
                 $("searchResults").classList.remove("show");
                 return;
             }
-            searchTimer = setTimeout(async () => {
-                const d = await api(
-                    "/api/user/search?token=" +
-                    encodeURIComponent(me.token) +
-                    "&q=" +
-                    encodeURIComponent(q) +
-                    "&limit=8",
-                );
-                if (d.code !== 200 || !d.data) return;
+            searchTimer = setTimeout(() => {
                 const el = $("searchResults");
                 el.replaceChildren();
-                for (const u of d.data) {
+                // Search conversation peers (users with chat history)
+                const matches = convCache.filter(c =>
+                    c.peer_name && c.peer_name.toLowerCase().includes(q.toLowerCase())
+                ).slice(0, 8);
+                for (const c of matches) {
                     const item = tpl("SearchItem");
-                    item.querySelector(".sr-avatar").textContent = u.username[0].toUpperCase();
-                    item.querySelector("div:nth-of-type(2)").textContent = u.username;
-                    item.querySelector("div:nth-of-type(2)").onclick = () => startChat(u.id, u.username);
+                    item.querySelector(".sr-avatar").textContent = c.peer_name[0].toUpperCase();
+                    item.querySelector("div:nth-of-type(2)").textContent = c.peer_name;
+                    item.querySelector("div:nth-of-type(2)").onclick = () => startChat(c.peer_uid, c.peer_name);
                     const btn = item.querySelector(".btn-add-friend");
-                    btn.textContent = t("addFriend");
-                    btn.onclick = (e) => { e.stopPropagation(); addFriend(u.id, u.username) };
+                    if (btn) btn.style.display = "none";
                     el.appendChild(item);
                 }
-                el.classList.add("show");
-            }, 300);
+                if (matches.length > 0) el.classList.add("show");
+                else el.classList.remove("show");
+            }, 200);
         }
         function startChat(uid, name) {
             $("searchInput").value = "";
