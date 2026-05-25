@@ -492,7 +492,8 @@
         }
 
         .msg-row.mine .m-avatar {
-            display: none;
+            background: var(--primary);
+            color: #fff;
         }
 
         .msg-bubble {
@@ -545,7 +546,7 @@
         }
 
         .msg-row.mine .msg-sender {
-            display: none;
+            /* group chat: own name shown above bubble, private chat: hidden via JS */
         }
 
         .typing-indicator {
@@ -902,8 +903,13 @@
                         padding: 40px 20px;
                         gap: 16px;
                     ">
-                <div class="avatar" id="meAvatar" style="width: 64px; height: 64px; font-size: 28px"></div>
-                <div class="title" id="meName" style="font-size: 18px"></div>
+                <div
+                    style="display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 0;width:100%;max-width:300px">
+                    <div class="avatar" id="meAvatar"
+                        style="width:52px;height:52px;font-size:22px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">
+                    </div>
+                    <div class="title" id="meName" style="font-size:17px;font-weight:600"></div>
+                </div>
                 <div style="width:100%;max-width:300px;display:flex;flex-direction:column;gap:8px">
                     <div id="lblAppearance"
                         style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px"></div>
@@ -912,8 +918,6 @@
                     <div id="lblLanguage"
                         style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:8px">
                     </div>
-                    <button id="btnLang"
-                        style="padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;text-align:left;width:100%"></button>
                     <div style="display:flex;width:100%;max-width:300px">
                         <button id="btnLangZh"
                             style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm) 0 0 var(--radius-sm);font-size:14px;text-align:center">中文</button>
@@ -924,7 +928,7 @@
                         style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-top:8px">
                     </div>
                     <button id="btnLogout"
-                        style="padding:10px 16px;border:1px solid var(--danger);border-radius:var(--radius-sm);font-size:14px;color:var(--danger);text-align:left;width:100%"></button>
+                        style="padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;text-align:left;width:100%"></button>
                     <button id="btnDeleteAccount"
                         style="padding:10px 16px;border:1px solid var(--danger);border-radius:var(--radius-sm);font-size:14px;color:var(--danger);text-align:left;width:100%"></button>
                 </div>
@@ -1760,6 +1764,7 @@
             }
             const div = tpl("MsgRow");
             if (isMine) div.classList.add("mine");
+            // Private chat: no sender names, avatar for both sides
             div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
             div.querySelector(".msg-bubble").textContent = m.content;
             div.querySelector(".msg-time").textContent = time;
@@ -1913,9 +1918,9 @@
             const div = tpl("GroupMsgRow");
             if (isMine) div.classList.add("mine");
             div.querySelector(".m-avatar").textContent = nm[0].toUpperCase();
-            // Show sender name above bubble for other people's messages
+            // Group chat: always show sender name and avatar
             const sender = div.querySelector(".msg-sender");
-            sender.textContent = isMine ? "" : nm;
+            sender.textContent = nm;
             const bubble = div.querySelector(".msg-bubble");
             bubble.textContent = m.content;
             div.querySelector(".msg-time").textContent = time;
@@ -2086,7 +2091,7 @@
             $("btnLangEn").style.color = lang === "en" ? "#fff" : "";
             $("lblAccount").textContent = t("account");
             $("btnLogout").textContent = t("logout");
-            $("btnLogout").onclick = doLogout;
+            $("btnLogout").onclick = () => { if (confirm(t("confirmLogout"))) doLogout(); };
             $("btnDeleteAccount").textContent = t("deleteAccount");
             $("btnDeleteAccount").onclick = doDeleteAccount;
         }
